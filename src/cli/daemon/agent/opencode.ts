@@ -14,21 +14,27 @@ export class OpenCodeBackend implements AgentBackend {
     if (options.model) {
       args.push("--model", options.model);
     }
+    if (options.systemPrompt) {
+      args.push("--prompt", options.systemPrompt);
+    }
     if (options.resumeSessionId) {
       args.push("--session", options.resumeSessionId);
     }
 
-    args.push("--prompt", prompt);
+    // User prompt as positional argument (no flag)
+    args.push(prompt);
 
     const proc = spawn(this.cliPath, args, {
       cwd: options.cwd,
       stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env },
+      env: { ...process.env, OPENCODE_PERMISSION: '{"*":"allow"}' },
     });
 
+    let timedOut = false;
     let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
     if (options.timeout) {
       timeoutTimer = setTimeout(() => {
+        timedOut = true;
         proc.kill("SIGTERM");
       }, options.timeout);
     }
@@ -122,7 +128,7 @@ export class OpenCodeBackend implements AgentBackend {
           }
 
           case "error": {
-            const content = event.message as string || event.content as string || "";
+            const content = (event.message as string) || (event.content as string) || "";
             lastError = content;
             pushMessage({ type: "error", content });
             break;
@@ -157,7 +163,9 @@ export class OpenCodeBackend implements AgentBackend {
       proc.on("close", (code: number | null) => {
         if (timeoutTimer) clearTimeout(timeoutTimer);
 
-        if (code !== 0 && resultStatus === "completed") {
+        if (timedOut) {
+          resultStatus = "timeout";
+        } else if (code !== 0 && resultStatus === "completed") {
           resultStatus = "failed";
         }
 

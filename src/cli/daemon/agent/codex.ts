@@ -12,6 +12,38 @@ interface JsonRpcMessage {
   error?: { code: number; message: string };
 }
 
+type NotificationProtocol = "unknown" | "legacy" | "raw";
+
+const RAW_DETECTION_METHODS = new Set([
+  "turn/started",
+  "turn/completed",
+  "thread/started",
+  "item/started",
+  "item/completed",
+]);
+
+/** Extract thread ID from a thread/start response. */
+export function extractThreadID(response: unknown): string {
+  if (response && typeof response === "object") {
+    const r = response as Record<string, unknown>;
+    // Try nested result.thread.id first, then thread.id, then top-level id
+    const thread =
+      (r.result as Record<string, unknown> | undefined)?.thread ??
+      (r.thread as Record<string, unknown> | undefined);
+    if (thread && typeof thread === "object") {
+      const id = (thread as Record<string, unknown>).id;
+      if (typeof id === "string" && id) return id;
+    }
+    if (typeof r.id === "string" && r.id) return r.id;
+  }
+  return "";
+}
+
+/** Return undefined if the string is empty/null, otherwise the string. */
+export function nilIfEmpty(s: string | undefined | null): string | undefined {
+  return s ? s : undefined;
+}
+
 export class CodexBackend implements AgentBackend {
   name = "codex";
 
@@ -24,9 +56,11 @@ export class CodexBackend implements AgentBackend {
       env: { ...process.env },
     });
 
+    let timedOut = false;
     let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
     if (options.timeout) {
       timeoutTimer = setTimeout(() => {
+        timedOut = true;
         proc.kill("SIGTERM");
       }, options.timeout);
     }
@@ -36,6 +70,19 @@ export class CodexBackend implements AgentBackend {
     let lastOutput = "";
     let lastError = "";
     let resultStatus: AgentResult["status"] = "completed";
+    let sessionId = "";
+
+    // Protocol detection state
+    let notificationProtocol: NotificationProtocol = "unknown";
+
+    // Turn deduplication
+    let lastCompletedTurnId = "";
+
+    // Pending RPC callbacks
+    const pendingRequests = new Map<
+      number,
+      { resolve: (value: unknown) => void; reject: (err: Error) => void }
+    >();
 
     const messageQueue: AgentMessage[] = [];
     let messageResolve: (() => void) | null = null;
@@ -50,32 +97,263 @@ export class CodexBackend implements AgentBackend {
       }
     };
 
-    const sendRpc = (
-      method: string,
-      params: Record<string, unknown>,
-      id?: number,
-    ) => {
-      const msg: JsonRpcMessage = { jsonrpc: "2.0", method, params };
-      if (id !== undefined) msg.id = id;
+    const writeStdin = (data: string) => {
       try {
-        proc.stdin?.write(JSON.stringify(msg) + "\n");
+        proc.stdin?.write(data + "\n");
       } catch {
         // stdin closed
       }
     };
 
+    const sendRpc = (
+      method: string,
+      params: Record<string, unknown>,
+    ): Promise<unknown> => {
+      const id = ++requestId;
+      const msg: JsonRpcMessage = { jsonrpc: "2.0", id, method, params };
+      writeStdin(JSON.stringify(msg));
+      return new Promise((resolve, reject) => {
+        pendingRequests.set(id, { resolve, reject });
+      });
+    };
+
+    const sendNotification = (method: string) => {
+      const msg = { jsonrpc: "2.0" as const, method };
+      writeStdin(JSON.stringify(msg));
+    };
+
     const sendResponse = (id: number, result: unknown) => {
       const msg = { jsonrpc: "2.0" as const, id, result };
-      try {
-        proc.stdin?.write(JSON.stringify(msg) + "\n");
-      } catch {
-        // stdin closed
+      writeStdin(JSON.stringify(msg));
+    };
+
+    /** Cancel all pending RPC requests. */
+    const closeAllPending = (reason: string) => {
+      for (const [, cb] of pendingRequests) {
+        cb.reject(new Error(reason));
+      }
+      pendingRequests.clear();
+    };
+
+    const triggerTurnDone = (aborted: boolean) => {
+      if (aborted) {
+        resultStatus = "aborted";
+      } else {
+        resultStatus = "completed";
+      }
+    };
+
+    const handleServerRequest = (msg: JsonRpcMessage) => {
+      const method = msg.method!;
+      const id = msg.id!;
+
+      switch (method) {
+        case "item/commandExecution/requestApproval":
+        case "execCommandApproval":
+        case "item/fileChange/requestApproval":
+        case "applyPatchApproval":
+          sendResponse(id, { decision: "accept" });
+          break;
+        default:
+          sendResponse(id, {});
+          break;
+      }
+    };
+
+    const handleNotification = (msg: JsonRpcMessage) => {
+      const method = msg.method!;
+      const params = msg.params || {};
+
+      // Legacy protocol detection
+      if (method === "codex/event") {
+        if (notificationProtocol === "raw") return; // locked to raw, ignore legacy
+        notificationProtocol = "legacy";
+        handleLegacyEvent(params);
+        return;
+      }
+
+      // Raw protocol detection — these methods trigger detection
+      if (RAW_DETECTION_METHODS.has(method)) {
+        if (notificationProtocol === "legacy") return; // locked to legacy, ignore raw
+        notificationProtocol = "raw";
+      }
+
+      // thread/status/changed is raw-only but NOT a detection trigger
+      if (method === "thread/status/changed" && notificationProtocol === "legacy") {
+        return;
+      }
+
+      switch (method) {
+        case "turn/started": {
+          pushMessage({ type: "status", status: "turn_start" });
+          break;
+        }
+
+        case "turn/completed": {
+          const turnId = params.turnId as string | undefined;
+          if (turnId && turnId === lastCompletedTurnId) return; // deduplicate
+          if (turnId) lastCompletedTurnId = turnId;
+
+          const status = params.status as string | undefined;
+          if (status === "completed" || status === "finished") {
+            triggerTurnDone(false);
+          } else if (status === "cancelled" || status === "aborted") {
+            triggerTurnDone(true);
+          } else if (status === "error" || status === "failed") {
+            resultStatus = "failed";
+            lastError = (params.output as string) || "turn failed";
+          }
+          break;
+        }
+
+        case "thread/status/changed": {
+          const status = params.status as string | undefined;
+          if (status === "idle") {
+            triggerTurnDone(false);
+          }
+          break;
+        }
+
+        case "item/started": {
+          const item = params.item as Record<string, unknown> | undefined;
+          if (!item) break;
+          const itemType = item.type as string | undefined;
+
+          if (itemType === "commandExecution") {
+            pushMessage({
+              type: "tool-use",
+              tool: "exec_command",
+              callId: item.id as string,
+              input: item as Record<string, unknown>,
+            });
+          } else if (itemType === "fileChange") {
+            pushMessage({
+              type: "tool-use",
+              tool: "patch_apply",
+              callId: item.id as string,
+              input: item as Record<string, unknown>,
+            });
+          }
+          break;
+        }
+
+        case "item/completed": {
+          const item = params.item as Record<string, unknown> | undefined;
+          if (!item) break;
+          const itemType = item.type as string | undefined;
+
+          if (itemType === "commandExecution") {
+            const output = (item.aggregatedOutput as string) || "";
+            pushMessage({
+              type: "tool-result",
+              callId: item.id as string,
+              output,
+            });
+          } else if (itemType === "fileChange") {
+            pushMessage({
+              type: "tool-result",
+              callId: item.id as string,
+              output: "",
+            });
+          } else if (itemType === "agentMessage") {
+            const content = item.content as
+              | { type: string; text?: string }[]
+              | undefined;
+            if (Array.isArray(content)) {
+              for (const block of content) {
+                if (block.type === "output_text" || block.type === "text") {
+                  if (block.text) {
+                    pushMessage({ type: "text", content: block.text });
+                    lastOutput = block.text;
+                  }
+                }
+              }
+            }
+            const phase = item.phase as string | undefined;
+            if (phase === "final_answer") {
+              triggerTurnDone(false);
+            }
+          }
+          break;
+        }
+
+        default: {
+          pushMessage({
+            type: "log",
+            content: JSON.stringify(msg),
+            level: "debug",
+          });
+        }
+      }
+    };
+
+    const handleLegacyEvent = (params: Record<string, unknown>) => {
+      const eventType = params.type as string | undefined;
+      if (!eventType) return;
+
+      switch (eventType) {
+        case "task_started":
+          pushMessage({ type: "status", status: "running" });
+          break;
+
+        case "agent_message": {
+          const text = (params.text as string) || (params.message as string) || "";
+          if (text) {
+            pushMessage({ type: "text", content: text });
+            lastOutput = text;
+          }
+          break;
+        }
+
+        case "exec_command_begin":
+          pushMessage({
+            type: "tool-use",
+            tool: "exec_command",
+            callId: params.id as string,
+            input: params as Record<string, unknown>,
+          });
+          break;
+
+        case "exec_command_end":
+          pushMessage({
+            type: "tool-result",
+            callId: params.id as string,
+            output: (params.output as string) || "",
+          });
+          break;
+
+        case "patch_apply_begin":
+          pushMessage({
+            type: "tool-use",
+            tool: "patch_apply",
+            callId: params.id as string,
+            input: params as Record<string, unknown>,
+          });
+          break;
+
+        case "patch_apply_end":
+          pushMessage({
+            type: "tool-result",
+            callId: params.id as string,
+            output: (params.output as string) || "",
+          });
+          break;
+
+        case "task_complete": {
+          const output = params.output as string | undefined;
+          if (output) lastOutput = output;
+          triggerTurnDone(false);
+          break;
+        }
+
+        case "turn_aborted":
+          triggerTurnDone(true);
+          break;
       }
     };
 
     const resultPromise = new Promise<AgentResult>((resolve) => {
       const stderrChunks: string[] = [];
-      let initialized = false;
 
       proc.stderr?.on("data", (chunk: Buffer) => {
         stderrChunks.push(chunk.toString());
@@ -94,137 +372,110 @@ export class CodexBackend implements AgentBackend {
           return;
         }
 
-        if (msg.id !== undefined && msg.result !== undefined && !msg.method) {
-          if (!initialized) {
-            initialized = true;
-            startThread(prompt, options);
-          }
+        // Route: server request (has both id AND method)
+        if (msg.id !== undefined && msg.method) {
+          handleServerRequest(msg);
           return;
         }
 
-        if (msg.method) {
+        // Route: notification (has method, no id)
+        if (msg.method && msg.id === undefined) {
           handleNotification(msg);
           return;
         }
 
-        if (msg.error) {
-          lastError = msg.error.message;
-          pushMessage({
-            type: "error",
-            content: msg.error.message,
-          });
+        // Route: response (has id, no method) — both success and error
+        if (msg.id !== undefined && !msg.method) {
+          const pending = pendingRequests.get(msg.id);
+          if (pending) {
+            pendingRequests.delete(msg.id);
+            if (msg.error) {
+              pending.reject(new Error(msg.error.message));
+            } else {
+              pending.resolve(msg.result);
+            }
+          }
+          return;
         }
+
+        // Fallback
+        pushMessage({
+          type: "log",
+          content: JSON.stringify(msg),
+          level: "debug",
+        });
       });
 
-      const startThread = (prompt: string, opts: ExecOptions) => {
-        const threadParams: Record<string, unknown> = {
-          instructions: prompt,
-        };
-        if (opts.model) {
-          threadParams.model = opts.model;
-        }
+      // Handshake: initialize → initialized → thread/start → turn/start
+      const startHandshake = async () => {
+        try {
+          // 1. Initialize
+          await sendRpc("initialize", {
+            clientInfo: {
+              name: "alook-daemon",
+              title: "Alook Agent SDK",
+              version: "0.1.0",
+            },
+            capabilities: { experimentalApi: true },
+          });
 
-        const id = ++requestId;
-        sendRpc("thread/start", threadParams, id);
-      };
+          // 2. Send initialized notification
+          sendNotification("initialized");
 
-      const handleNotification = (msg: JsonRpcMessage) => {
-        switch (msg.method) {
-          case "turn/start": {
-            pushMessage({
-              type: "status",
-              status: "turn_start",
+          // 3. Start or resume thread
+          let threadResponse: unknown;
+          if (options.resumeSessionId) {
+            // thread/resume reopens an existing thread by ID
+            threadResponse = await sendRpc("thread/resume", {
+              threadId: options.resumeSessionId,
+              ...(options.model ? { model: options.model } : {}),
+              ...(nilIfEmpty(options.systemPrompt)
+                ? { developerInstructions: options.systemPrompt }
+                : {}),
             });
-            break;
-          }
-
-          case "turn/complete": {
-            const output = msg.params?.output as string | undefined;
-            if (output) lastOutput = output;
-            const status = msg.params?.status as string | undefined;
-
-            if (status === "completed" || status === "finished") {
-              resultStatus = "completed";
-            } else if (status === "error" || status === "failed") {
-              resultStatus = "failed";
-              lastError = output || "turn failed";
+            sessionId = options.resumeSessionId;
+          } else {
+            // thread/start creates a new thread
+            const threadParams: Record<string, unknown> = {
+              cwd: options.cwd,
+              sandbox: "workspace-write",
+              persistExtendedHistory: true,
+              experimentalRawEvents: false,
+            };
+            if (nilIfEmpty(options.systemPrompt)) {
+              threadParams.developerInstructions = options.systemPrompt;
             }
-            break;
-          }
-
-          case "thread/complete": {
-            const output = msg.params?.output as string | undefined;
-            if (output) lastOutput = output;
-            break;
-          }
-
-          case "item/created": {
-            const item = msg.params?.item as Record<string, unknown> | undefined;
-            if (!item) break;
-
-            const itemType = item.type as string | undefined;
-            if (itemType === "message") {
-              const content = item.content as
-                | { type: string; text?: string }[]
-                | undefined;
-              if (Array.isArray(content)) {
-                for (const block of content) {
-                  if (block.type === "output_text" || block.type === "text") {
-                    pushMessage({ type: "text", content: block.text });
-                    if (block.text) lastOutput = block.text;
-                  }
-                }
-              }
-            } else if (
-              itemType === "function_call" ||
-              itemType === "tool_call"
-            ) {
-              pushMessage({
-                type: "tool-use",
-                tool: (item.name as string) || (item.function as string) || "",
-                callId: item.call_id as string,
-                input: item.arguments as Record<string, unknown>,
-              });
-            } else if (itemType === "function_call_output") {
-              pushMessage({
-                type: "tool-result",
-                callId: item.call_id as string,
-                output: item.output as string,
-              });
+            if (options.model) {
+              threadParams.model = options.model;
             }
-            break;
+            threadResponse = await sendRpc("thread/start", threadParams);
+            sessionId = extractThreadID(threadResponse);
           }
 
-          case "approval/requested": {
-            const approvalId = msg.params?.id as number | undefined;
-            if (approvalId !== undefined) {
-              sendResponse(approvalId, { approved: true });
-            }
-            const reqId = msg.id;
-            if (reqId !== undefined) {
-              sendResponse(reqId, { approved: true });
-            }
-            break;
-          }
-
-          default: {
-            pushMessage({
-              type: "log",
-              content: JSON.stringify(msg),
-              level: "debug",
-            });
-          }
+          // 5. Send turn/start with the prompt
+          await sendRpc("turn/start", {
+            threadId: sessionId,
+            input: [{ type: "text", text: prompt }],
+          });
+        } catch (err) {
+          const errMsg =
+            err instanceof Error ? err.message : "handshake failed";
+          lastError = errMsg;
+          resultStatus = "failed";
+          pushMessage({ type: "error", content: errMsg });
         }
       };
 
-      // Send initialize request
-      const initId = ++requestId;
-      sendRpc("initialize", { client: "alook-daemon", version: "0.1.0" }, initId);
+      startHandshake();
 
       proc.on("close", (code: number | null) => {
         if (timeoutTimer) clearTimeout(timeoutTimer);
 
-        if (code !== 0 && resultStatus === "completed") {
+        closeAllPending("process closed");
+
+        if (timedOut) {
+          resultStatus = "timeout";
+        } else if (code !== 0 && resultStatus === "completed") {
           resultStatus = "failed";
         }
 
@@ -245,7 +496,7 @@ export class CodexBackend implements AgentBackend {
           output: lastOutput,
           error: lastError,
           durationMs: Date.now() - startTime,
-          sessionId: "",
+          sessionId,
         });
       });
     });

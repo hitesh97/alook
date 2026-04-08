@@ -38,9 +38,11 @@ export class ClaudeBackend implements AgentBackend {
       env: { ...process.env },
     });
 
+    let timedOut = false;
     let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
     if (options.timeout) {
       timeoutTimer = setTimeout(() => {
+        timedOut = true;
         proc.kill("SIGTERM");
       }, options.timeout);
     }
@@ -152,7 +154,7 @@ export class ClaudeBackend implements AgentBackend {
             break;
           }
 
-          case "control": {
+          case "control_request": {
             handleControlRequest(proc, event);
             break;
           }
@@ -170,7 +172,9 @@ export class ClaudeBackend implements AgentBackend {
       proc.on("close", (code: number | null) => {
         if (timeoutTimer) clearTimeout(timeoutTimer);
 
-        if (code !== 0 && resultStatus === "completed") {
+        if (timedOut) {
+          resultStatus = "timeout";
+        } else if (code !== 0 && resultStatus === "completed") {
           resultStatus = "failed";
         }
 
@@ -222,13 +226,35 @@ function handleControlRequest(
   proc: ChildProcess,
   event: Record<string, unknown>,
 ): void {
-  const controlId = event.control_id as string | undefined;
-  if (!controlId) return;
+  const requestId = event.request_id as string | undefined;
+  if (!requestId) return;
+
+  // Parse input from the control request payload
+  let updatedInput: unknown = undefined;
+  const payload = event.payload as Record<string, unknown> | undefined;
+  if (payload) {
+    const input = payload.input;
+    if (typeof input === "string") {
+      try {
+        updatedInput = JSON.parse(input);
+      } catch {
+        updatedInput = input;
+      }
+    } else if (input !== undefined) {
+      updatedInput = input;
+    }
+  }
 
   const approval = JSON.stringify({
     type: "control_response",
-    control_id: controlId,
-    approved: true,
+    response: {
+      subtype: "success",
+      request_id: requestId,
+      response: {
+        behavior: "allow",
+        updatedInput,
+      },
+    },
   });
 
   try {
