@@ -14,7 +14,7 @@ export const POST = withAuth(async (_req, ctx) => {
   try {
     const task = await taskService.startTask(taskId);
     return writeJSON(taskToResponse(task));
-  } catch (err: any) {
-    return writeError(err.message, 400);
+  } catch (err: unknown) {
+    return writeError(err instanceof Error ? err.message : "Unknown error", 400);
   }
 });

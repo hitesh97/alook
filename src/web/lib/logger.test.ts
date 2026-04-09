@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Logger } from "./logger";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let stdoutSpy: any;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 let stderrSpy: any;
 
 beforeEach(() => {
@@ -15,7 +15,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function parseLine(spy: any): Record<string, unknown> {
   const raw = spy.mock.calls[0][0] as string;
   return JSON.parse(raw);

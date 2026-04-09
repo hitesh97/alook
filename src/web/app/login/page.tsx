@@ -15,7 +15,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Logo } from "@/components/logo";
 import { GradientBackground } from "@/components/gradient-background";

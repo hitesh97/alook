@@ -33,6 +33,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   }
 
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const workspace = await db.transaction(async (tx: any) => {
       const ws = await createWorkspace(tx, { name, slug });
       await createMember(tx, {
@@ -43,8 +44,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       return ws;
     });
     return writeJSON(workspaceToResponse(workspace), 201);
-  } catch (err: any) {
-    if (err.code === "23505") {
+  } catch (err: unknown) {
+    if ((err as Record<string, unknown>).code === "23505") {
       return writeError("workspace slug already exists", 409);
     }
     throw err;

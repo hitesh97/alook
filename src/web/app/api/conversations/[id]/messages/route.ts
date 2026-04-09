@@ -83,13 +83,13 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       { message: messageToResponse(message), task: taskToResponse(task) },
       201
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     log.error("enqueueTask error", { err });
     return writeJSON(
       {
         message: messageToResponse(message),
         task: null,
-        error: err.message,
+        error: err instanceof Error ? err.message : "Unknown error",
       },
       500
     );

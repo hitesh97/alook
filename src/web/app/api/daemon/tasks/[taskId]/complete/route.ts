@@ -28,7 +28,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       workDir
     );
     return writeJSON(taskToResponse(task));
-  } catch (e: any) {
-    return writeError(e.message, 400);
+  } catch (e: unknown) {
+    return writeError(e instanceof Error ? e.message : "Unknown error", 400);
   }
 });

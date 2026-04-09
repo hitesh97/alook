@@ -8,7 +8,7 @@ import { ChevronDownIcon, CheckIcon } from "lucide-react"
 function Select({
   modal = false,
   ...props
-}: SelectPrimitive.Root.Props<any>) {
+}: SelectPrimitive.Root.Props<string>) {
   return <SelectPrimitive.Root data-slot="select" modal={modal} {...props} />
 }
 

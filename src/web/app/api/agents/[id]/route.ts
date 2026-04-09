@@ -48,7 +48,7 @@ export const PATCH = withAuth(async (req, ctx) => {
     return writeError("no fields to update", 400);
   }
 
-  const updated = await updateAgent(db, id, ws.workspaceId, data as any);
+  const updated = await updateAgent(db, id, ws.workspaceId, data as { name?: string; description?: string; instructions?: string; runtimeId?: string });
   if (!updated) {
     return writeError("agent not found", 404);
   }

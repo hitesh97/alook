@@ -31,9 +31,10 @@ export async function parseBody<T>(
   try {
     const data = schema.parse(raw);
     return [data, null];
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const e = err as Record<string, unknown>;
     const issues: { path: (string | number)[]; message: string }[] =
-      err.issues ?? err.errors ?? [];
+      (e.issues ?? e.errors ?? []) as { path: (string | number)[]; message: string }[];
     const fields = issues.map(
       (e) => `${e.path.join(".")}: ${e.message}`,
     );

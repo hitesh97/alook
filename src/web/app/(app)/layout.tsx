@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AgentProvider } from "@/contexts/agent-context";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -9,6 +9,7 @@ import { GradientBackground } from "@/components/gradient-background";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
+  const readyRef = useRef(setReady);
 
   useEffect(() => {
     try {
@@ -16,7 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       if (!token) {
         router.replace("/login");
       } else {
-        setReady(true);
+        readyRef.current(true);
       }
     } catch {
       router.replace("/login");

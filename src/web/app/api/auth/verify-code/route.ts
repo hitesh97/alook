@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
     const userId = user.id;
     const workspaces = await listWorkspaces(db, userId);
     if (workspaces.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await db.transaction(async (tx: any) => {
         const ws = await listWorkspaces(tx, userId);
         if (ws.length > 0) return;
@@ -79,8 +80,8 @@ export async function POST(req: NextRequest) {
             userId,
             role: "owner",
           });
-        } catch (err: any) {
-          if (err.code === "23505") {
+        } catch (err: unknown) {
+          if ((err as Record<string, unknown>).code === "23505") {
             slug = `${baseSlug}-${randomBytes(3).toString("hex")}`;
             const workspace = await createWorkspace(tx, {
               name: "Personal",

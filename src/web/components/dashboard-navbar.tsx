@@ -26,15 +26,11 @@ import type { Runtime } from "@/lib/types";
 function OnboardingSteps({
   generatedToken,
   generatingToken,
-  tokenCopied,
   onGenerateToken,
-  onCopyToken,
 }: {
   generatedToken: string;
   generatingToken: boolean;
-  tokenCopied: boolean;
   onGenerateToken: () => void;
-  onCopyToken: () => void;
 }) {
   const hasTriggered = useRef(false);
   useEffect(() => {
@@ -242,9 +238,7 @@ export function DashboardNavbar() {
                     <OnboardingSteps
                       generatedToken={generatedToken}
                       generatingToken={generatingToken}
-                      tokenCopied={tokenCopied}
                       onGenerateToken={handleGenerateToken}
-                      onCopyToken={handleCopyToken}
                     />
                   ) : (
                     <div className="space-y-3">

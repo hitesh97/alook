@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import {
   listMachineTokens,
@@ -7,7 +7,7 @@ import {
 import { generateMachineToken, hashToken } from "@/lib/auth/jwt";
 import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
-import { writeJSON, writeError } from "@/lib/middleware/helpers";
+import { writeJSON } from "@/lib/middleware/helpers";
 import { machineTokenToResponse } from "@/lib/api/responses";
 
 export const GET = withAuth(async (req, ctx) => {
