@@ -1,4 +1,4 @@
-import { eq, and, asc, sql, or } from "drizzle-orm";
+import { eq, and, asc, or, lt, isNull } from "drizzle-orm";
 import { agentRuntime, agent, agentTaskQueue } from "../schema";
 import type { Database } from "../index";
 
@@ -15,6 +15,7 @@ export async function upsertAgentRuntime(
     metadata?: unknown;
   }
 ) {
+  const now = new Date();
   const rows = await db
     .insert(agentRuntime)
     .values({
@@ -26,7 +27,7 @@ export async function upsertAgentRuntime(
       status: data.status,
       deviceInfo: data.deviceInfo,
       metadata: data.metadata ?? null,
-      lastSeenAt: sql`now()`,
+      lastSeenAt: now,
     })
     .onConflictDoUpdate({
       target: [
@@ -35,13 +36,13 @@ export async function upsertAgentRuntime(
         agentRuntime.provider,
       ],
       set: {
-        name: sql`excluded.name`,
-        runtimeMode: sql`excluded.runtime_mode`,
-        status: sql`excluded.status`,
-        deviceInfo: sql`excluded.device_info`,
-        metadata: sql`excluded.metadata`,
-        lastSeenAt: sql`now()`,
-        updatedAt: sql`now()`,
+        name: data.name,
+        runtimeMode: data.runtimeMode,
+        status: data.status,
+        deviceInfo: data.deviceInfo,
+        metadata: data.metadata ?? null,
+        lastSeenAt: now,
+        updatedAt: now,
       },
     })
     .returning();
@@ -79,9 +80,10 @@ export async function getAgentRuntimeForWorkspace(
 }
 
 export async function updateAgentRuntimeHeartbeat(db: Database, id: string) {
+  const now = new Date();
   const rows = await db
     .update(agentRuntime)
-    .set({ lastSeenAt: sql`now()`, status: "online", updatedAt: sql`now()` })
+    .set({ lastSeenAt: now, status: "online", updatedAt: now })
     .where(eq(agentRuntime.id, id))
     .returning();
   return rows[0] ?? null;
@@ -90,7 +92,7 @@ export async function updateAgentRuntimeHeartbeat(db: Database, id: string) {
 export async function setAgentRuntimeOffline(db: Database, id: string) {
   await db
     .update(agentRuntime)
-    .set({ status: "offline", updatedAt: sql`now()` })
+    .set({ status: "offline", updatedAt: new Date() })
     .where(eq(agentRuntime.id, id));
 }
 
@@ -118,7 +120,7 @@ export async function deleteRuntimesByDaemonId(
   for (const id of ids) {
     await db
       .update(agent)
-      .set({ runtimeId: null, updatedAt: sql`now()` })
+      .set({ runtimeId: null, updatedAt: new Date() })
       .where(eq(agent.runtimeId, id));
 
     await db
@@ -141,16 +143,17 @@ export async function markStaleRuntimesOffline(
   db: Database,
   workspaceId: string
 ) {
+  const threshold = new Date(Date.now() - 45 * 1000);
   await db
     .update(agentRuntime)
-    .set({ status: "offline", updatedAt: sql`now()` })
+    .set({ status: "offline", updatedAt: new Date() })
     .where(
       and(
         eq(agentRuntime.workspaceId, workspaceId),
         eq(agentRuntime.status, "online"),
         or(
-          sql`${agentRuntime.lastSeenAt} < now() - interval '45 seconds'`,
-          sql`${agentRuntime.lastSeenAt} IS NULL`
+          lt(agentRuntime.lastSeenAt, threshold),
+          isNull(agentRuntime.lastSeenAt)
         )
       )
     );

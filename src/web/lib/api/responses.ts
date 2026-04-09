@@ -81,12 +81,16 @@ export function taskToResponse(t: {
 }
 
 export function conversationToResponse(c: any) {
-  return {
+  const resp: any = {
     id: c.id,
     agent_id: c.agentId,
     title: c.title,
     created_at: formatTimestamp(c.createdAt),
   };
+  if (c.messageCount !== undefined) {
+    resp.message_count = c.messageCount;
+  }
+  return resp;
 }
 
 export function messageToResponse(m: any) {

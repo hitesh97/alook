@@ -4,20 +4,9 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useAgentContext } from "@/contexts/agent-context";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectPopup,
-  SelectItem,
-  SelectGroup,
-  SelectGroupLabel,
-} from "@/components/ui/select";
+import { AgentEditForm } from "@/components/agent-edit-form";
 import {
   getConversation,
   listMessages,
@@ -25,10 +14,11 @@ import {
   getTask,
   getTaskMessages,
 } from "@/lib/api";
-import type { Conversation, Message, Task, TaskMessage, Runtime } from "@/lib/types";
+import type { Conversation, Message, Task, TaskMessage } from "@/lib/types";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Send, Loader2, Pencil, Trash2, X } from "lucide-react";
+import { ArrowUp, Loader2, Pencil, Trash2, X } from "lucide-react";
+import { Streamdown } from "streamdown";
 
 export default function ChatPage() {
   const params = useParams();
@@ -54,61 +44,12 @@ export default function ChatPage() {
 
   // Inline edit state
   const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editInstructions, setEditInstructions] = useState("");
-  const [editRuntimeId, setEditRuntimeId] = useState("");
   const [saving, setSaving] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSeqRef = useRef(0);
   const pollFailures = useRef(0);
-
-  const openEdit = () => {
-    if (!agent) return;
-    setEditName(agent.name);
-    setEditDescription(agent.description);
-    setEditInstructions(agent.instructions);
-    setEditRuntimeId(agent.runtime_id);
-    setEditing(true);
-  };
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!agent) return;
-    setSaving(true);
-    try {
-      const ok = await handleUpdateAgent(agent.id, {
-        name: editName,
-        description: editDescription,
-        instructions: editInstructions,
-        runtime_id: editRuntimeId,
-      });
-      if (ok) setEditing(false);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Runtime groups for edit form
-  const runtimeGroups = new Map<
-    string,
-    { label: string; runtimes: Runtime[] }
-  >();
-  for (const rt of runtimes) {
-    const key = rt.daemon_id || rt.id;
-    if (!runtimeGroups.has(key)) {
-      runtimeGroups.set(key, {
-        label:
-          (typeof rt.device_info === "string" ? rt.device_info : "") ||
-          rt.name ||
-          key,
-        runtimes: [],
-      });
-    }
-    runtimeGroups.get(key)!.runtimes.push(rt);
-  }
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -271,7 +212,13 @@ export default function ChatPage() {
               />
             );
           })()}
-          <h1 className="text-sm font-medium truncate">
+          <h1
+            className={cn(
+              "text-sm font-medium truncate",
+              agentId && "cursor-pointer hover:opacity-70 transition-opacity duration-200"
+            )}
+            onClick={() => agentId && router.push(`/agents/${agentId}`)}
+          >
             {agent?.name || "Agent"}
           </h1>
           {!editing && conversation?.title && (
@@ -301,7 +248,7 @@ export default function ChatPage() {
                   variant="ghost"
                   size="sm"
                   className="text-xs text-muted-foreground h-7 gap-1 px-2"
-                  onClick={openEdit}
+                  onClick={() => setEditing(true)}
                 >
                   <Pencil className="size-3" />
                   Edit
@@ -322,117 +269,22 @@ export default function ChatPage() {
       </div>
 
       {editing && agent ? (
-        /* Inline edit form */
-        <div className="flex-1 overflow-y-auto px-5 py-6">
-          <form onSubmit={handleSave} className="mx-auto max-w-md space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-name">Name</Label>
-              <Input
-                id="edit-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="My Agent"
-                required
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-description">Description</Label>
-              <Input
-                id="edit-description"
-                value={editDescription}
-                onChange={(e) => setEditDescription(e.target.value)}
-                placeholder="What does this agent do?"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-instructions">Instructions</Label>
-              <Textarea
-                id="edit-instructions"
-                value={editInstructions}
-                onChange={(e) => setEditInstructions(e.target.value)}
-                placeholder="System prompt or instructions..."
-                rows={6}
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-runtime">Runtime</Label>
-              <Select
-                value={editRuntimeId}
-                onValueChange={(val: string | null) => {
-                  if (val) setEditRuntimeId(val);
-                }}
-                disabled={
-                  runtimes.length === 0 ||
-                  runtimes.every((r) => r.status !== "online")
-                }
-                items={runtimes.map((rt) => {
-                  const machine =
-                    (typeof rt.device_info === "string"
-                      ? rt.device_info
-                      : "") ||
-                    rt.name ||
-                    "";
-                  const label = machine
-                    ? `${rt.provider} (${machine})`
-                    : rt.provider;
-                  return { value: rt.id, label };
-                })}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      runtimes.length === 0
-                        ? "No runtimes — start a daemon first"
-                        : runtimes.every((r) => r.status !== "online")
-                          ? "All runtimes offline"
-                          : "Select a runtime"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectPopup portal={false}>
-                  {Array.from(runtimeGroups.entries()).map(([key, group]) => (
-                    <SelectGroup key={key}>
-                      <SelectGroupLabel className="truncate">
-                        {group.label}
-                      </SelectGroupLabel>
-                      {group.runtimes.map((rt) => (
-                        <SelectItem
-                          key={rt.id}
-                          value={rt.id}
-                          disabled={rt.status !== "online"}
-                        >
-                          <span className="flex items-center gap-2">
-                            <span>{rt.provider}</span>
-                            <span className="text-muted-foreground text-xs">
-                              ({rt.status})
-                            </span>
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectPopup>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" size="sm" disabled={saving || !editName}>
-                {saving ? "Saving..." : "Save"}
-              </Button>
-            </div>
-          </form>
-        </div>
+        <AgentEditForm
+          agent={agent}
+          runtimes={runtimes}
+          saving={saving}
+          onCancel={() => setEditing(false)}
+          onSave={async (data) => {
+            setSaving(true);
+            try {
+              const ok = await handleUpdateAgent(agent.id, data);
+              if (ok) setEditing(false);
+              return ok;
+            } finally {
+              setSaving(false);
+            }
+          }}
+        />
       ) : (
         <>
           {/* Messages */}
@@ -449,15 +301,15 @@ export default function ChatPage() {
                   key={msg.id}
                   className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                 >
-                  <div
-                    className={`max-w-[80%] rounded-lg px-4 py-2 text-sm whitespace-pre-wrap ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
-                  >
-                    {msg.content}
-                  </div>
+                  {msg.role === "user" ? (
+                    <div className="max-w-[80%] rounded-lg px-4 py-2 bg-primary text-primary-foreground whitespace-pre-wrap">
+                      {msg.content}
+                    </div>
+                  ) : (
+                    <div className="markdown max-w-full px-1 py-1 text-base text-foreground">
+                      <Streamdown>{msg.content}</Streamdown>
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -471,7 +323,7 @@ export default function ChatPage() {
                     </Badge>
                   </div>
                   {taskMessages.length > 0 && (
-                    <div className="mt-2 max-h-60 overflow-y-auto rounded bg-background p-3 font-mono text-xs space-y-1">
+                    <div className="mt-2 max-h-60 overflow-y-auto rounded-lg bg-muted/30 p-3 font-mono text-xs space-y-1">
                       {taskMessages.map((tm) => (
                         <div key={tm.id} className="text-muted-foreground">
                           {tm.type === "tool-use" && (
@@ -517,24 +369,46 @@ export default function ChatPage() {
           </div>
 
           {/* Input */}
-          <div className="border-t border-border/50 px-5 py-3">
-            <div className="mx-auto flex max-w-2xl gap-2">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type a message..."
-                rows={1}
-                className="min-h-[40px] resize-none"
-                disabled={sending || !!activeTask}
-              />
-              <Button
-                size="icon"
-                onClick={handleSend}
-                disabled={!input.trim() || sending || !!activeTask}
+          <div className="px-5 py-3">
+            <div className="mx-auto max-w-2xl">
+              <div
+                className={cn(
+                  "relative flex flex-col rounded-xl border bg-background/60 transition-colors duration-200",
+                  "focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
+                  (sending || !!activeTask) && "opacity-50"
+                )}
               >
-                <Send className="size-4" />
-              </Button>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type a message..."
+                  rows={1}
+                  disabled={sending || !!activeTask}
+                  className={cn(
+                    "field-sizing-content w-full resize-none bg-transparent px-3.5 pt-2.5 text-base outline-none",
+                    "placeholder:text-muted-foreground disabled:cursor-not-allowed",
+                    "min-h-[38px] max-h-[200px]"
+                  )}
+                />
+                <div className="flex items-center justify-end px-2 pb-2 pt-0.5">
+                  <Button
+                    size="icon-sm"
+                    onClick={handleSend}
+                    disabled={!input.trim() || sending || !!activeTask}
+                    className={cn(
+                      "rounded-lg transition-opacity duration-200",
+                      !input.trim() && "opacity-40"
+                    )}
+                  >
+                    {sending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <ArrowUp className="size-3.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </>

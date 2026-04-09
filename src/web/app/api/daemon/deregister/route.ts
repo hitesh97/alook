@@ -7,6 +7,7 @@ import {
 import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { DeregisterRequestSchema } from "@alook/shared";
+import { log } from "@/lib/logger";
 
 export const POST = withAuth(async (req: NextRequest, ctx) => {
   const [body, err] = await parseBody(req, DeregisterRequestSchema);
@@ -27,7 +28,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     try {
       await setAgentRuntimeOffline(db, id);
     } catch (e) {
-      console.warn(`failed to set runtime ${id} offline:`, e);
+      log.warn("Failed to set runtime offline", { runtimeId: id, err: e });
     }
   }
 

@@ -12,12 +12,17 @@ vi.mock("@/lib/middleware/workspace", () => ({
 }));
 vi.mock("@/lib/db", () => ({ db: {} }));
 vi.mock("@/lib/db/queries/conversation");
+vi.mock("@/lib/db/queries/task");
 vi.mock("@/lib/api/responses", () => ({
   conversationToResponse: vi.fn((c: any) => ({ id: c.id })),
 }));
 
-import { getConversation } from "@/lib/db/queries/conversation";
+import { getConversation, deleteConversation } from "@/lib/db/queries/conversation";
+import { deleteTasksByConversation } from "@/lib/db/queries/task";
+
 const mockGet = vi.mocked(getConversation);
+const mockDelete = vi.mocked(deleteConversation);
+const mockDeleteTasks = vi.mocked(deleteTasksByConversation);
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -47,6 +52,55 @@ describe("GET /api/conversations/[id]", () => {
     const { GET } = await import("./route");
     const res = await GET(
       new NextRequest("http://localhost/api/conversations/c1?workspace_id=w1"),
+      { params: Promise.resolve({ id: "c1" }) },
+    );
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("DELETE /api/conversations/[id]", () => {
+  it("returns 204 and removes conversation + tasks", async () => {
+    mockGet.mockResolvedValue({ id: "c1", workspaceId: "w1" } as any);
+    mockDeleteTasks.mockResolvedValue([{ id: "t1" }]);
+    mockDelete.mockResolvedValue({ id: "c1" } as any);
+    const { DELETE } = await import("./route");
+    const res = await DELETE(
+      new NextRequest("http://localhost/api/conversations/c1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "c1" }) },
+    );
+    expect(res.status).toBe(204);
+    expect(mockDeleteTasks).toHaveBeenCalledWith({}, "c1");
+    expect(mockDelete).toHaveBeenCalledWith({}, "c1");
+  });
+
+  it("deletes tasks in all statuses before conversation", async () => {
+    mockGet.mockResolvedValue({ id: "c1", workspaceId: "w1" } as any);
+    mockDeleteTasks.mockResolvedValue([{ id: "t1" }, { id: "t2" }, { id: "t3" }]);
+    mockDelete.mockResolvedValue({ id: "c1" } as any);
+    const { DELETE } = await import("./route");
+    const res = await DELETE(
+      new NextRequest("http://localhost/api/conversations/c1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "c1" }) },
+    );
+    expect(res.status).toBe(204);
+    expect(mockDeleteTasks).toHaveBeenCalled();
+  });
+
+  it("returns 404 when conversation not found", async () => {
+    mockGet.mockResolvedValue(null as any);
+    const { DELETE } = await import("./route");
+    const res = await DELETE(
+      new NextRequest("http://localhost/api/conversations/c1", { method: "DELETE" }),
+      { params: Promise.resolve({ id: "c1" }) },
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 404 when workspace mismatch", async () => {
+    mockGet.mockResolvedValue({ id: "c1", workspaceId: "other" } as any);
+    const { DELETE } = await import("./route");
+    const res = await DELETE(
+      new NextRequest("http://localhost/api/conversations/c1", { method: "DELETE" }),
       { params: Promise.resolve({ id: "c1" }) },
     );
     expect(res.status).toBe(404);

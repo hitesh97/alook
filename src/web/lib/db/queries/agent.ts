@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { agent, agentTaskQueue } from "../schema";
 import type { Database } from "../index";
 
@@ -96,7 +96,7 @@ export async function updateAgent(
 ) {
   const rows = await db
     .update(agent)
-    .set({ ...data, updatedAt: sql`now()` })
+    .set({ ...data, updatedAt: new Date() })
     .where(and(eq(agent.id, id), eq(agent.workspaceId, workspaceId)))
     .returning();
   return rows[0] ?? null;

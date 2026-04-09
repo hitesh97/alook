@@ -4,6 +4,7 @@ import { deleteRuntimesByDaemonId } from "@/lib/db/queries/runtime";
 import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON } from "@/lib/middleware/helpers";
+import { log } from "@/lib/logger";
 
 export const DELETE = withAuth(async (req: NextRequest, ctx) => {
   const ws = await withWorkspaceMember(req, ctx);
@@ -17,7 +18,7 @@ export const DELETE = withAuth(async (req: NextRequest, ctx) => {
   try {
     await deleteRuntimesByDaemonId(db, daemonId, ws.workspaceId);
   } catch (e) {
-    console.error("Failed to delete machine:", e);
+    log.error("Failed to delete machine", { err: e });
     return writeJSON({ error: "Failed to remove machine" }, 500);
   }
 

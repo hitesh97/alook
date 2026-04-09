@@ -12,6 +12,7 @@ import { createMember } from "@/lib/db/queries/member";
 import { signJWT } from "@/lib/auth/jwt";
 import { writeJSON, writeError } from "@/lib/middleware/helpers";
 import { userToResponse } from "@/lib/api/responses";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   let body: { email?: string; code?: string };
@@ -111,7 +112,7 @@ export async function POST(req: NextRequest) {
     });
     return response;
   } catch (err) {
-    console.error("verify-code error:", err);
+    log.error("verify-code error", { err });
     return writeError("internal server error", 500);
   }
 }

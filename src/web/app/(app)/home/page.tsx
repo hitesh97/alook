@@ -8,10 +8,10 @@ import { Loader2 } from "lucide-react";
 
 export default function HomePage() {
   const router = useRouter();
-  const { agents, runtimes, loading, chatWithAgent } = useAgentContext();
+  const { agents, runtimes, loading } = useAgentContext();
   const redirectedRef = useRef(false);
 
-  // Auto-redirect to first agent's chat
+  // Auto-redirect to first agent's detail page
   useEffect(() => {
     if (loading || redirectedRef.current) return;
     if (agents.length === 0) return;
@@ -19,15 +19,8 @@ export default function HomePage() {
     redirectedRef.current = true;
     const sorted = [...agents].sort((a, b) => a.name.localeCompare(b.name));
     const first = sorted[0];
-
-    chatWithAgent(first.id).then((conversationId) => {
-      if (conversationId) {
-        router.replace(`/chat/${conversationId}?agent=${first.id}`);
-      } else {
-        redirectedRef.current = false;
-      }
-    });
-  }, [agents, loading, chatWithAgent, router]);
+    router.replace(`/agents/${first.id}`);
+  }, [agents, loading, router]);
 
   if (loading) {
     return (

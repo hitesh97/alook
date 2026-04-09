@@ -5,35 +5,25 @@ import { useAgentContext } from "@/contexts/agent-context";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { Monitor, LogOut, Plus, Loader2 } from "lucide-react";
-import { useState } from "react";
 
 export function AppSidebar() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { agents, loading, chatWithAgent } = useAgentContext();
-  const [navigatingAgentId, setNavigatingAgentId] = useState<string | null>(
-    null
-  );
+  const { agents, loading } = useAgentContext();
 
   const sorted = [...agents].sort((a, b) => a.name.localeCompare(b.name));
 
   const isRuntimes = pathname === "/runtimes";
   const isCreateAgent = pathname === "/agents/new";
 
+  // Detect active agent from ?agent= param or /agents/[id] route
   const urlAgentId = searchParams.get("agent");
-  const activeAgentId = navigatingAgentId ?? urlAgentId;
+  const pathnameAgentMatch = pathname.match(/^\/agents\/([^/]+)$/);
+  const activeAgentId = urlAgentId ?? pathnameAgentMatch?.[1] ?? null;
 
-  const handleAgentClick = async (agentId: string) => {
-    setNavigatingAgentId(agentId);
-    try {
-      const conversationId = await chatWithAgent(agentId);
-      if (conversationId) {
-        router.push(`/chat/${conversationId}?agent=${agentId}`);
-      }
-    } finally {
-      setNavigatingAgentId(null);
-    }
+  const handleAgentClick = (agentId: string) => {
+    router.push(`/agents/${agentId}`);
   };
 
   return (
@@ -47,20 +37,17 @@ export function AppSidebar() {
         ) : (
           sorted.map((agent) => {
             const isActive = activeAgentId === agent.id;
-            const isNavigating = navigatingAgentId === agent.id;
             return (
               <button
                 key={agent.id}
                 type="button"
                 title={agent.name}
-                disabled={isNavigating}
                 onClick={() => handleAgentClick(agent.id)}
                 className={cn(
                   "relative flex shrink-0 items-center justify-center size-10 rounded-xl text-sm font-medium transition-colors duration-200 cursor-pointer",
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
-                    : "bg-secondary text-secondary-foreground hover:bg-accent",
-                  isNavigating && "opacity-60"
+                    : "bg-secondary text-secondary-foreground hover:bg-accent"
                 )}
               >
                 {agent.name.charAt(0).toUpperCase()}

@@ -1,4 +1,4 @@
-import { eq, and, sql, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, notInArray, isNotNull, count, lt } from "drizzle-orm";
 import { agentTaskQueue } from "../schema";
 import type { Database } from "../index";
 import { ClaimedTaskRowSchema } from "@alook/shared";
@@ -45,24 +45,37 @@ export async function getTaskStatus(db: Database, id: string) {
 }
 
 export async function claimTask(db: Database, agentId: string) {
-  const candidates = await db
+  // Step 1: Get conversations that have active (dispatched/running) tasks
+  const activeConversations = await db
+    .select({ conversationId: agentTaskQueue.conversationId })
+    .from(agentTaskQueue)
+    .where(
+      and(
+        eq(agentTaskQueue.agentId, agentId),
+        inArray(agentTaskQueue.status, ["dispatched", "running"])
+      )
+    );
+
+  const activeConvIds = activeConversations.map((r) => r.conversationId);
+
+  // Step 2: Find queued tasks not in those conversations
+  const candidateQuery = db
     .select({ id: agentTaskQueue.id })
     .from(agentTaskQueue)
     .where(
       and(
         eq(agentTaskQueue.agentId, agentId),
         eq(agentTaskQueue.status, "queued"),
-        sql`NOT EXISTS (
-          SELECT 1 FROM agent_task_queue active
-          WHERE active.conversation_id = ${agentTaskQueue.conversationId}
-            AND active.status IN ('dispatched', 'running')
-            AND active.id != ${agentTaskQueue.id}
-        )`
+        ...(activeConvIds.length > 0
+          ? [notInArray(agentTaskQueue.conversationId, activeConvIds)]
+          : [])
       )
     )
     .orderBy(desc(agentTaskQueue.priority), asc(agentTaskQueue.createdAt))
     .limit(1)
     .for("update", { skipLocked: true });
+
+  const candidates = await candidateQuery;
 
   if (candidates.length === 0) return null;
 
@@ -148,7 +161,7 @@ export async function getLastTaskSession(
         eq(agentTaskQueue.agentId, agentId),
         eq(agentTaskQueue.conversationId, conversationId),
         eq(agentTaskQueue.status, "completed"),
-        sql`${agentTaskQueue.sessionId} IS NOT NULL`
+        isNotNull(agentTaskQueue.sessionId)
       )
     )
     .orderBy(desc(agentTaskQueue.completedAt))
@@ -177,13 +190,16 @@ export async function hasPendingTaskForConversation(
   conversationId: string
 ) {
   const rows = await db
-    .select({ exists: sql<boolean>`EXISTS(
-      SELECT 1 FROM agent_task_queue
-      WHERE conversation_id = ${conversationId}
-        AND status IN ('queued', 'dispatched')
-    )` })
-    .from(sql`(SELECT 1) AS _dummy`);
-  return rows[0]?.exists ?? false;
+    .select({ id: agentTaskQueue.id })
+    .from(agentTaskQueue)
+    .where(
+      and(
+        eq(agentTaskQueue.conversationId, conversationId),
+        inArray(agentTaskQueue.status, ["queued", "dispatched"])
+      )
+    )
+    .limit(1);
+  return rows.length > 0;
 }
 
 export async function cancelTask(db: Database, id: string) {
@@ -201,6 +217,7 @@ export async function cancelTask(db: Database, id: string) {
 }
 
 export async function failStaleDispatchedTasks(db: Database, staleSeconds = 20) {
+  const threshold = new Date(Date.now() - staleSeconds * 1000);
   const rows = await db
     .update(agentTaskQueue)
     .set({
@@ -211,16 +228,26 @@ export async function failStaleDispatchedTasks(db: Database, staleSeconds = 20) 
     .where(
       and(
         eq(agentTaskQueue.status, "dispatched"),
-        sql`${agentTaskQueue.dispatchedAt} < now() - interval '${sql.raw(String(staleSeconds))} seconds'`
+        lt(agentTaskQueue.dispatchedAt, threshold)
       )
     )
     .returning({ agentId: agentTaskQueue.agentId });
   return rows;
 }
 
+export async function deleteTasksByConversation(
+  db: Database,
+  conversationId: string
+) {
+  return db
+    .delete(agentTaskQueue)
+    .where(eq(agentTaskQueue.conversationId, conversationId))
+    .returning({ id: agentTaskQueue.id });
+}
+
 export async function countRunningTasks(db: Database, agentId: string) {
   const rows = await db
-    .select({ count: sql<number>`COUNT(*)` })
+    .select({ value: count() })
     .from(agentTaskQueue)
     .where(
       and(
@@ -228,5 +255,5 @@ export async function countRunningTasks(db: Database, agentId: string) {
         inArray(agentTaskQueue.status, ["dispatched", "running"])
       )
     );
-  return Number(rows[0]?.count ?? 0);
+  return Number(rows[0]?.value ?? 0);
 }

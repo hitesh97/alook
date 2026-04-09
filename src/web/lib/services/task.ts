@@ -2,6 +2,7 @@ import type { Database } from "../db";
 import * as taskQueries from "../db/queries/task";
 import * as agentQueries from "../db/queries/agent";
 import * as messageQueries from "../db/queries/message";
+import { log } from "../logger";
 
 export class TaskService {
   constructor(private db: Database) {}
@@ -102,9 +103,7 @@ export class TaskService {
     if (!task) {
       const existing = await taskQueries.getTask(this.db, taskId);
       const status = existing?.status ?? "unknown";
-      console.warn(
-        `completeTask failed for ${taskId}: task is in '${status}' status`
-      );
+      log.warn(`completeTask failed: task is in '${status}' status`, { taskId });
       throw new Error(`cannot complete task in '${status}' status`);
     }
 
@@ -131,9 +130,7 @@ export class TaskService {
     if (!task) {
       const existing = await taskQueries.getTask(this.db, taskId);
       const status = existing?.status ?? "unknown";
-      console.warn(
-        `failTask failed for ${taskId}: task is in '${status}' status`
-      );
+      log.warn(`failTask failed: task is in '${status}' status`, { taskId });
       throw new Error(`cannot fail task in '${status}' status`);
     }
 

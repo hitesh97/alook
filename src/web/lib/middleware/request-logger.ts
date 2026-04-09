@@ -1,3 +1,5 @@
+import { log } from "../logger";
+
 export function logRequest(
   method: string,
   path: string,
@@ -8,16 +10,16 @@ export function logRequest(
 ): void {
   if (path === "/health" || path === "/api/health") return;
 
-  const attrs: Record<string, unknown> = {
+  const ctx: Record<string, unknown> = {
     method,
     path,
     status,
     duration: `${durationMs}ms`,
   };
-  if (requestId) attrs.request_id = requestId;
-  if (userId) attrs.user_id = userId;
+  if (requestId) ctx.request_id = requestId;
+  if (userId) ctx.user_id = userId;
 
-  if (status >= 500) console.error("http request", attrs);
-  else if (status >= 400) console.warn("http request", attrs);
-  else console.info("http request", attrs);
+  if (status >= 500) log.error("http request", ctx);
+  else if (status >= 400) log.warn("http request", ctx);
+  else log.info("http request", ctx);
 }

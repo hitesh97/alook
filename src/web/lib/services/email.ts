@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { log } from "../logger";
 
 export class EmailService {
   private client: Resend | null;
@@ -12,7 +13,7 @@ export class EmailService {
 
   async sendVerificationCode(to: string, code: string): Promise<void> {
     if (!this.client) {
-      console.log(`[DEV] Verification code for ${to}: ${code}`);
+      log.info("DEV verification code", { to, code });
       return;
     }
 

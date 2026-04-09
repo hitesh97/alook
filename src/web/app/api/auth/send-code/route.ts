@@ -8,6 +8,7 @@ import {
 import { generateVerificationCode } from "@/lib/auth/jwt";
 import { EmailService } from "@/lib/services/email";
 import { writeJSON, writeError } from "@/lib/middleware/helpers";
+import { log } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
   let body: { email?: string };
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
 
   const appEnv = process.env.APP_ENV || "development";
   if (appEnv !== "production") {
-    console.log("dev mode: use code 888888");
+    log.info("dev mode: use code 888888");
     return writeJSON({ message: "Verification code sent" });
   }
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     const emailService = new EmailService();
     await emailService.sendVerificationCode(email, code);
   } catch (err) {
-    console.error("Failed to send verification email:", err);
+    log.error("Failed to send verification email", { err });
     return writeError("failed to send verification email", 500);
   }
 

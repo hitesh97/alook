@@ -1,4 +1,4 @@
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, desc, gt, lt, sql } from "drizzle-orm";
 import { verificationCode } from "../schema";
 import type { Database } from "../index";
 
@@ -28,8 +28,8 @@ export async function getLatestVerificationCode(
       and(
         eq(verificationCode.email, email),
         eq(verificationCode.used, false),
-        sql`${verificationCode.expiresAt} > now()`,
-        sql`${verificationCode.attempts} < 5`
+        gt(verificationCode.expiresAt, new Date()),
+        lt(verificationCode.attempts, 5)
       )
     )
     .orderBy(desc(verificationCode.createdAt))
@@ -67,5 +67,5 @@ export async function getLatestCodeByEmail(db: Database, email: string) {
 export async function deleteExpiredVerificationCodes(db: Database) {
   await db
     .delete(verificationCode)
-    .where(sql`${verificationCode.expiresAt} < now()`);
+    .where(lt(verificationCode.expiresAt, new Date()));
 }

@@ -5,6 +5,7 @@ import { buildPrompt } from "./prompt.js";
 import { createBackend, detectVersion } from "./agent/index.js";
 import { type Task, type TaskResult, type AgentMessage, fromApiTask } from "./types.js";
 import { loadCLIConfigForProfile } from "../lib/config.js";
+import { log } from "../lib/logger.js";
 import { mkdirSync } from "fs";
 import { join } from "path";
 import { execSync } from "child_process";
@@ -38,7 +39,7 @@ export async function startDaemon(
 
   const cliConfig = loadCLIConfigForProfile(profile);
   if (!cliConfig.token) {
-    console.error("Not registered. Run 'alook register' first.");
+    log.error("Not registered. Run 'alook register' first.");
     process.exit(1);
   }
   if (cliConfig.server_url) config.serverURL = cliConfig.server_url;
@@ -48,7 +49,7 @@ export async function startDaemon(
 
   const workspaces = cliConfig.watched_workspaces || [];
   if (workspaces.length === 0) {
-    console.error("No watched workspaces configured.");
+    log.error("No watched workspaces configured.");
     process.exit(1);
   }
 
@@ -65,11 +66,11 @@ export async function startDaemon(
   }
 
   if (providers.length === 0) {
-    console.error("No agent CLI tools found on PATH.");
+    log.error("No agent CLI tools found on PATH.");
     process.exit(1);
   }
 
-  console.log(
+  log.info(
     `Detected providers: ${providers.map((p) => `${p.type}@${p.version}`).join(", ")}`,
   );
 
@@ -106,15 +107,15 @@ export async function startDaemon(
 
   const allRuntimeIds = workspaceStates.flatMap((ws) => ws.runtimeIds);
   health.setRuntimeCount(allRuntimeIds.length);
-  console.log(
-    `Daemon started. ${allRuntimeIds.length} runtime(s) registered across ${workspaces.length} workspace(s).`,
+  log.info(
+    `Daemon started — ${allRuntimeIds.length} runtime(s) across ${workspaces.length} workspace(s)`,
   );
 
   let heartbeatTimer: NodeJS.Timeout;
   let pollTimer: NodeJS.Timeout;
 
   const shutdown = async () => {
-    console.log("Shutting down...");
+    log.info("Shutting down...");
     clearInterval(heartbeatTimer);
     clearInterval(pollTimer);
     const timeout = setTimeout(() => process.exit(1), 5000);
@@ -135,7 +136,7 @@ export async function startDaemon(
       try {
         await client.heartbeat(rid);
       } catch (e) {
-        console.debug("heartbeat failed:", e);
+        log.debug("Heartbeat failed", e);
       }
     }
   }, config.heartbeatInterval);
@@ -154,11 +155,11 @@ export async function startDaemon(
           const task = fromApiTask(resp.task);
           activeTasks.add(task.id);
           handleTask(client, config, runtimeIndex, task)
-            .catch((e) => console.error("task error:", e))
+            .catch((e) => log.error("Task error", e))
             .finally(() => activeTasks.delete(task.id));
         }
       } catch (e) {
-        console.debug("poll error:", e);
+        log.debug("Poll error", e);
       }
     }
   };
@@ -173,7 +174,7 @@ async function handleTask(
   runtimeIndex: Map<string, RuntimeData>,
   task: Task,
 ): Promise<void> {
-  console.log(`Task ${task.id}: claimed (agent=${task.agentId})`);
+  log.info(`Task ${task.id} claimed agent=${task.agentId}`);
 
   try {
     await client.startTask(task.id);
@@ -195,14 +196,14 @@ async function handleTask(
       if (result.workDir) body.work_dir = result.workDir;
       if (result.branchName) body.branch_name = result.branchName;
       await client.completeTask(task.id, body);
-      console.log(`Task ${task.id}: completed`);
+      log.info(`Task ${task.id} completed`);
     } else {
       await client.failTask(task.id, result.comment);
-      console.log(`Task ${task.id}: failed — ${result.comment}`);
+      log.warn(`Task ${task.id} failed — ${result.comment}`);
     }
   } catch (e) {
     await client.failTask(task.id, `${e}`);
-    console.error(`Task ${task.id}: error — ${e}`);
+    log.error(`Task ${task.id} error`, e);
   }
 }
 
@@ -267,7 +268,7 @@ async function runTask(
     try {
       await client.reportMessages(task.id, batch);
     } catch (e) {
-      console.debug(`Task ${task.id}: message report failed:`, e);
+      log.debug(`Task ${task.id} message report failed`, e);
     }
   };
 

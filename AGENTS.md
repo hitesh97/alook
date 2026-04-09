@@ -23,5 +23,56 @@ Alook's main purpose is to make the cli agent always on, and give it a email add
 
 ## Don't use plan MODE, try to write the plan md directly
 
+## Database Queries — No Raw SQL
+
+Use Drizzle ORM operators for all queries. **Never use `sql` template literals** unless there is no ORM equivalent (atomic increment, upsert `excluded.*` references).
+
+**Why:** Drizzle aliases tables internally (e.g. `conversation` → `t0`). Raw SQL like `` sql`"conversation"."id"` `` breaks silently because the alias doesn't match, returning wrong results with no error.
+
+### Bad — raw SQL
+```ts
+// Broken: Drizzle may alias the table, subquery returns 0
+sql`(SELECT count(*) FROM message WHERE message.conversation_id = ${conversation.id})`
+
+// Broken: hardcoded table name won't match Drizzle alias
+sql`${agentRuntime.lastSeenAt} < now() - interval '45 seconds'`
+
+// Broken: no type safety, typos fail silently at runtime
+sql`${verificationCode.expiresAt} > now()`
+```
+
+### Good — ORM operators
+```ts
+// Use leftJoin + count for aggregations
+db.select({ messageCount: count(message.id) })
+  .from(conversation)
+  .leftJoin(message, eq(message.conversationId, conversation.id))
+  .groupBy(conversation.id)
+
+// Use lt/gt with Date objects for timestamp comparisons
+const threshold = new Date(Date.now() - 45 * 1000);
+lt(agentRuntime.lastSeenAt, threshold)
+
+// Use gt/lt for value comparisons
+gt(verificationCode.expiresAt, new Date())
+lt(verificationCode.attempts, 5)
+
+// Use isNull/isNotNull instead of IS NULL
+isNull(agentRuntime.lastSeenAt)
+isNotNull(agentTaskQueue.sessionId)
+
+// Use count() instead of COUNT(*)
+db.select({ value: count() }).from(table).where(...)
+
+// Use new Date() instead of sql`now()`
+.set({ updatedAt: new Date() })
+```
+
+### Acceptable exceptions
+```ts
+// Atomic increment — no ORM equivalent
+.set({ attempts: sql`${verificationCode.attempts} + 1` })
+```
+
 ## UIUX
 read @DESIGN.md

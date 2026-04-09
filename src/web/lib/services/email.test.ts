@@ -18,18 +18,21 @@ beforeEach(() => {
 });
 
 describe("EmailService", () => {
-  it("logs to console when RESEND_API_KEY is not set", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+  it("logs via logger when RESEND_API_KEY is not set", async () => {
+    const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
     const svc = new EmailService();
     await svc.sendVerificationCode("user@test.com", "123456");
 
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Verification code for user@test.com: 123456")
-    );
+    expect(stdoutSpy).toHaveBeenCalled();
+    const output = stdoutSpy.mock.calls[0][0] as string;
+    const entry = JSON.parse(output);
+    expect(entry.msg).toBe("DEV verification code");
+    expect(entry.to).toBe("user@test.com");
+    expect(entry.code).toBe("123456");
     expect(MockResend).not.toHaveBeenCalled();
 
-    logSpy.mockRestore();
+    stdoutSpy.mockRestore();
   });
 
   it("uses default fromEmail noreply@alook.ai", () => {

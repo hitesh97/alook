@@ -148,6 +148,12 @@ export const createConversation = (agentId: string) =>
 export const getConversation = (id: string) =>
   apiFetch<Conversation>(`/api/conversations/${id}`);
 
+export const listAgentConversations = (agentId: string) =>
+  apiFetch<Conversation[]>(`/api/agents/${agentId}/conversations`);
+
+export const deleteConversation = (id: string) =>
+  apiFetch<void>(`/api/conversations/${id}`, { method: "DELETE" });
+
 export const listMessages = (conversationId: string) =>
   apiFetch<Message[]>(`/api/conversations/${conversationId}/messages`);
 

@@ -8,6 +8,7 @@ import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { taskMessageToResponse } from "@/lib/api/responses";
 import { ReportMessagesRequestSchema } from "@alook/shared";
+import { log } from "@/lib/logger";
 
 export const GET = withAuth(async (_req, ctx) => {
   const taskId = ctx.params?.taskId;
@@ -42,7 +43,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       input: m.input,
       output: m.output || "",
     }).catch((e) => {
-      console.warn("failed to create task message:", e);
+      log.warn("Failed to create task message", { taskId, err: e });
     });
   }
 
