@@ -32,3 +32,9 @@ export const MessageRole = {
 } as const;
 
 export type MessageRoleType = (typeof MessageRole)[keyof typeof MessageRole];
+
+// Timing constants
+export const HEARTBEAT_INTERVAL_MS = 3_000;
+export const OFFLINE_THRESHOLD_MS = 9_000;
+export const EVENT_POLL_INTERVAL_MS = 2_000;
+export const AGENT_HANDLE_MIN_LENGTH = 4;

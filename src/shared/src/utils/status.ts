@@ -1,5 +1,5 @@
 import { OFFLINE_THRESHOLD_MS } from "../constants"
-import type { RuntimeStatus } from "../types"
+import type { RuntimeStatusType } from "../constants"
 export function isOnline(t: string | null | undefined): boolean {
   if (!t) return false
   // D1 datetime('now') returns "YYYY-MM-DD HH:MM:SS" in UTC without timezone indicator.
@@ -8,4 +8,4 @@ export function isOnline(t: string | null | undefined): boolean {
   const ms = new Date(normalized).getTime()
   return !isNaN(ms) && Date.now() - ms < OFFLINE_THRESHOLD_MS
 }
-export function formatStatus(s: RuntimeStatus) { return s === "online" ? "Online" : "Offline" }
+export function formatStatus(s: RuntimeStatusType) { return s === "online" ? "Online" : "Offline" }
