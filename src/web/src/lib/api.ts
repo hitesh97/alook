@@ -4,6 +4,7 @@ import type {
   Conversation,
   CreateAgentRequest,
   UpdateAgentRequest,
+  Email,
   LoginResponse,
   Message,
   AgentTask,
@@ -174,6 +175,20 @@ export const getTaskMessages = (id: string, workspaceId: string, since?: number)
   apiFetch<TaskMessage[]>(
     `/api/tasks/${id}/messages${wsQuery(workspaceId, since ? { since: String(since) } : undefined)}`
   );
+
+// Emails
+export const listEmails = (agentId: string, workspaceId: string) =>
+  apiFetch<Email[]>(`/api/email${wsQuery(workspaceId, { agentId })}`);
+
+export const getEmail = (id: string, workspaceId: string) =>
+  apiFetch<Email>(`/api/email/${id}${wsQuery(workspaceId)}`);
+
+export const getEmailBody = async (id: string, workspaceId: string): Promise<string> => {
+  const params = new URLSearchParams({ workspace_id: workspaceId });
+  const res = await fetch(`/api/email/${id}/body?${params}`, { credentials: "include" });
+  if (!res.ok) return "(body not available)";
+  return res.text();
+};
 
 // Auth (Better Auth — redirect helpers only, actual auth via Better Auth client)
 export const signOut = async () => {
