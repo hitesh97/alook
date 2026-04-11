@@ -7,6 +7,11 @@ export async function getWorkspace(db: Database, id: string) {
   return rows[0] ?? null;
 }
 
+export async function getWorkspaceBySlug(db: Database, slug: string) {
+  const rows = await db.select().from(workspace).where(eq(workspace.slug, slug));
+  return rows[0] ?? null;
+}
+
 export async function listWorkspaces(db: Database, userId: string) {
   return db
     .select({
