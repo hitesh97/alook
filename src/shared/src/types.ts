@@ -26,6 +26,7 @@ export interface Agent {
   runtime_config: Record<string, unknown>;
   status: string;
   max_concurrent_tasks: number;
+  email_handle: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +108,18 @@ export interface MachineToken {
   created_at: string;
 }
 
+export interface Email {
+  id: string;
+  agent_id: string;
+  from_email: string;
+  to_email: string;
+  subject: string;
+  r2_key: string;
+  is_whitelisted: boolean;
+  forwarded: boolean;
+  created_at: string;
+}
+
 export interface LoginResponse {
   token: string;
   user: User;
@@ -119,6 +132,7 @@ export interface CreateAgentRequest {
   runtime_id: string;
   runtime_config?: Record<string, unknown>;
   max_concurrent_tasks?: number;
+  email_handle?: string;
 }
 
 /** Generic WebSocket message envelope used by broadcast and WS hooks. */

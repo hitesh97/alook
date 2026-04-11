@@ -10,6 +10,7 @@ export type {
   TaskAgentData,
   TaskMessage,
   MachineToken,
+  Email,
   LoginResponse,
   CreateAgentRequest,
   WsMessage,
