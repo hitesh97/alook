@@ -26,6 +26,18 @@ const caveat = Caveat({
 export const metadata: Metadata = {
   title: "Alook",
   description: "Chat with AI agents",
+  icons: {
+    icon: [
+      {
+        url: "/alook.svg",
+        media: "(prefers-color-scheme: light)",
+      },
+      {
+        url: "/alook-dark.svg",
+        media: "(prefers-color-scheme: dark)",
+      },
+    ],
+  },
 };
 
 export default function RootLayout({
