@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { Button } from "@/components/ui/button";
@@ -33,15 +34,25 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
       <div className="flex items-center justify-between border-b border-border/50 px-5 py-2.5">
         <div className="flex items-center gap-2 min-w-0">
           {agent && (
-            <span
+            <Link
+              href={`/w/${slug}/runtimes`}
               title={isOnline ? "Runtime online" : "Runtime offline"}
-              className={cn(
-                "size-2 rounded-full shrink-0",
-                isOnline ? "bg-status-online" : "bg-status-offline"
-              )}
-            />
+            >
+              <span
+                className={cn(
+                  "size-2 rounded-full shrink-0 block",
+                  isOnline ? "bg-status-online" : "bg-status-offline"
+                )}
+              />
+            </Link>
           )}
-          <h1 className="text-sm font-medium truncate">{agent?.name || "Agent"}</h1>
+          <Link
+            href={`/w/${slug}/agents/${agentId}/chat`}
+            onClick={() => setEditing(false)}
+            className="text-sm font-medium truncate hover:text-foreground/80 transition-colors"
+          >
+            {agent?.name || "Agent"}
+          </Link>
           {editing && <span className="text-xs text-muted-foreground">/ Settings</span>}
         </div>
         {agent && (
