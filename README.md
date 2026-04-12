@@ -70,7 +70,7 @@ graph TD
 - **Database:** Cloudflare D1 (SQLite)
 - **Storage:** Cloudflare R2
 - **Real-time:** WebSockets via Durable Objects
-- **AI Runtimes:** Claude (Agent SDK), Codex (OpenAI SDK), 
+- **AI Runtimes:** Claude Code, Codex, Opencode
 - **CLI Runtime:** Bun
 - **Monorepo:** Turborepo + pnpm workspaces
 - **Testing:** Vitest
