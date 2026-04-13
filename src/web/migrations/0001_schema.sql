@@ -146,7 +146,6 @@ CREATE TABLE IF NOT EXISTS agent_task_queue (
   result TEXT,
   context TEXT,
   session_id TEXT,
-  work_dir TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   dispatched_at TEXT,
   started_at TEXT,
@@ -169,6 +168,7 @@ CREATE TABLE IF NOT EXISTS task_message (
   seq INTEGER NOT NULL,
   type TEXT NOT NULL DEFAULT '',
   tool TEXT NOT NULL DEFAULT '',
+  call_id TEXT NOT NULL DEFAULT '',
   content TEXT NOT NULL DEFAULT '',
   input TEXT,
   output TEXT NOT NULL DEFAULT '',
@@ -187,6 +187,8 @@ CREATE TABLE IF NOT EXISTS emails (
   r2_key TEXT NOT NULL,
   is_whitelisted INTEGER NOT NULL DEFAULT 0,
   forwarded INTEGER NOT NULL DEFAULT 0,
+  html_body TEXT NOT NULL DEFAULT '',
+  attachments TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

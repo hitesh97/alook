@@ -108,6 +108,13 @@ export interface MachineToken {
   created_at: string;
 }
 
+export interface EmailAttachment {
+  key: string;
+  filename: string;
+  size: number;
+  contentType: string;
+}
+
 export interface Email {
   id: string;
   agent_id: string;
@@ -117,6 +124,8 @@ export interface Email {
   r2_key: string;
   is_whitelisted: boolean;
   forwarded: boolean;
+  html_body: string;
+  attachments: EmailAttachment[];
   created_at: string;
 }
 

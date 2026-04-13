@@ -1,23 +1,24 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AgentEditForm } from "@/components/agent-edit-form";
-import { AgentDetailSidebar } from "@/components/agent-detail-sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { Pencil, Trash2, X } from "lucide-react";
+import { Mail, MessageSquare, Pencil, Trash2, X } from "lucide-react";
 
 export default function AgentDetailLayout({ children }: { children: ReactNode }) {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const { slug } = useWorkspace();
   const agentId = params.id as string;
+  const isOnChat = pathname.includes(`/agents/${agentId}/chat`);
   const { agents, runtimes, handleDeleteAgent, handleUpdateAgent } = useAgentContext();
 
   const agent = agents.find((a) => a.id === agentId);
@@ -51,7 +52,7 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
           )}
           {agent ? (
             <Link
-              href={`/w/${slug}/agents/${agentId}/chat`}
+              href={`/w/${slug}/agents/${agentId}/email`}
               onClick={() => setEditing(false)}
               className="text-sm font-medium truncate hover:text-foreground/80 transition-colors"
             >
@@ -76,6 +77,23 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
               </Button>
             ) : (
               <>
+                {isOnChat ? (
+                  <Link
+                    href={`/w/${slug}/agents/${agentId}/email`}
+                    className="inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 gap-1 px-2 hover:bg-muted hover:text-foreground transition-all"
+                  >
+                    <Mail className="size-3" />
+                    Email
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/w/${slug}/agents/${agentId}/chat`}
+                    className="inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 gap-1 px-2 hover:bg-muted hover:text-foreground transition-all"
+                  >
+                    <MessageSquare className="size-3" />
+                    Chat
+                  </Link>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -102,7 +120,7 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
         )}
       </div>
 
-      {/* Content: edit form OR sidebar + children */}
+      {/* Content: edit form OR full-width children */}
       {editing && agent ? (
         <AgentEditForm
           agent={agent}
@@ -121,10 +139,7 @@ export default function AgentDetailLayout({ children }: { children: ReactNode })
           }}
         />
       ) : (
-        <div className="flex flex-1 min-h-0">
-          <AgentDetailSidebar agentId={agentId} />
-          <div className="flex-1 min-w-0 overflow-hidden flex flex-col">{children}</div>
-        </div>
+        <div className="flex-1 min-h-0 overflow-hidden flex flex-col">{children}</div>
       )}
 
       {/* Delete agent confirmation */}
