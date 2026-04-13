@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession, signOut } from "@/lib/auth-client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,9 +18,14 @@ import { LogOut } from "lucide-react";
 export function NavUser() {
   const { data: session } = useSession();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const user = session?.user;
-  if (!user) return null;
+  if (!mounted || !user) return null;
 
   const initials = (user.name ?? user.email ?? "?")
     .split(/[\s@]/)
