@@ -49,3 +49,21 @@ Every pixel should reduce mental load, not add it. Whitespace, typography, and h
 - The UI should fade into the background. If a user notices the tool instead of their content, something is wrong.
 - Aim for visual calm: Japanese minimalism, Bauhaus clarity. No decoration that doesn't serve comprehension.
 - If a feature makes the interface more complicated without making it more powerful, cut it.
+
+## Loading to Loaded Stability
+
+The transition from loading to loaded must feel like a *reveal*, not a *rearrangement*. The user's eye should never lose its place.
+
+### Core rule
+The loading skeleton and the loaded content must occupy the **same dimensions, position, and layout flow**. Nothing should jump, shift, or reflow when data arrives.
+
+### Guidelines
+
+- **Reserve exact space** — Skeleton placeholders must match the height, width, and margin of the real content they replace. A skeleton card that is 20px shorter than the loaded card causes a visible pop.
+- **Anchor scroll position** — If content loads above the viewport (e.g. prepending items), compensate scroll offset so the user's visible content stays pinned.
+- **Fade, don't swap** — Use a short crossfade (150–200ms, ease-out) to transition from skeleton to content. Avoid hard cuts where a gray block snaps to text in a single frame.
+- **Match structure, not just size** — Skeleton shapes should echo the content layout (e.g. a line for a title, a shorter line for metadata, a block for an avatar). Generic identical bars feel lazy and make the transition more jarring, not less.
+- **No Cumulative Layout Shift (CLS)** — Treat any visible layout shift during load as a bug. Images must have explicit dimensions or aspect-ratio containers. Dynamic lists should use fixed-height rows or virtualized containers.
+- **Empty states hold the frame** — When a section loads but has zero items, the empty state placeholder must fill the same region the skeleton occupied. Don't collapse the container.
+- **Stagger gracefully** — If multiple sections load independently, each section transitions on its own timeline. One section loading should never cause another to reflow.
+- **Avoid spinners as primary indicators** — Prefer inline skeletons over centered spinners. Spinners displace content and create a jarring before/after. Use spinners only for actions (button presses, form submissions) where there is no content to skeleton.
