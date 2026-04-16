@@ -1,17 +1,15 @@
 import { DaemonClient } from "./client.js";
 import { type DaemonConfig, loadDaemonConfig } from "./config.js";
 import { createHealthServer } from "./health.js";
-import { buildPrompt } from "./prompt.js";
-import { createBackend, detectVersion } from "./agent/index.js";
-import { type Task, type TaskResult, fromApiTask } from "./types.js";
-import { prepare } from "./execenv/index.js";
-import { initEntryAsync, updateEntry, createTimelineEntry, localISOString, findResumableSessionId } from "./execenv/timeline.js";
+import { detectVersion } from "./agent/index.js";
+import { type Task, type SessionRunnerInput, fromApiTask } from "./types.js";
 import { loadCLIConfigForProfile } from "../lib/config.js";
 import { log } from "../lib/logger.js";
 import { cmdPrefix } from "../lib/env.js";
 import { acquireDaemonPid, releaseDaemonPid } from "./pidfile.js";
-import { createWriteStream } from "fs";
-import { execSync } from "child_process";
+import { execSync, spawn, type ChildProcess } from "child_process";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
 interface WorkspaceState {
   workspaceId: string;
@@ -160,9 +158,11 @@ export async function startDaemon(
           const task = fromApiTask(apiTask);
           activeTasks.add(task.id);
           remaining--;
-          handleTask(client, config, runtimeIndex, task, ws.token)
-            .catch((e) => log.error("Task error", e))
-            .finally(() => activeTasks.delete(task.id));
+          handleTask(client, config, runtimeIndex, task, ws.token, activeTasks)
+            .catch((e) => {
+              log.error("Task error", e);
+              activeTasks.delete(task.id);
+            });
         }
       } catch (e) {
         log.debug("Poll error", e);
@@ -197,12 +197,28 @@ export async function startDaemon(
   await pollCycle();
 }
 
+const SESSION_RUNNER_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "session-runner.ts",
+);
+
+export function spawnSessionRunner(input: SessionRunnerInput): ChildProcess {
+  const encoded = Buffer.from(JSON.stringify(input)).toString("base64");
+  const child = spawn("bun", ["run", SESSION_RUNNER_PATH, encoded], {
+    detached: true,
+    stdio: "ignore",
+  });
+  child.unref();
+  return child;
+}
+
 async function handleTask(
   client: DaemonClient,
   config: DaemonConfig,
   runtimeIndex: Map<string, RuntimeData>,
   task: Task,
   token: string,
+  activeTasks: Set<string>,
 ): Promise<void> {
   log.info(`Task ${task.id} claimed agent=${task.agentId}`);
 
@@ -210,40 +226,17 @@ async function handleTask(
     await client.startTask(token, task.id);
   } catch (e) {
     await client.failTask(token, task.id, `start failed: ${e}`);
+    activeTasks.delete(task.id);
     return;
   }
 
-  try {
-    const result = await runTask(client, config, runtimeIndex, task, token);
-    if (result.status === "completed") {
-      const body: {
-        output: string;
-        session_id?: string;
-        branch_name?: string;
-      } = { output: result.comment };
-      if (result.sessionId) body.session_id = result.sessionId;
-      if (result.branchName) body.branch_name = result.branchName;
-      await client.completeTask(token, task.id, body);
-      log.info(`Task ${task.id} completed`);
-    } else {
-      await client.failTask(token, task.id, result.comment);
-      log.warn(`Task ${task.id} failed — ${result.comment}`);
-    }
-  } catch (e) {
-    await client.failTask(token, task.id, `${e}`);
-    log.error(`Task ${task.id} error`, e);
-  }
-}
-
-async function runTask(
-  client: DaemonClient,
-  config: DaemonConfig,
-  runtimeIndex: Map<string, RuntimeData>,
-  task: Task,
-  token: string,
-): Promise<TaskResult> {
+  // Resolve provider-specific CLI path and model
   const runtimeData = runtimeIndex.get(task.runtimeId);
-  if (!runtimeData) throw new Error(`unknown runtime: ${task.runtimeId}`);
+  if (!runtimeData) {
+    await client.failTask(token, task.id, `unknown runtime: ${task.runtimeId}`);
+    activeTasks.delete(task.id);
+    return;
+  }
 
   const provider = runtimeData.provider;
   const cliPath =
@@ -259,138 +252,18 @@ async function runTask(
         ? config.codexModel
         : config.opencodeModel;
 
-  const backend = createBackend(provider, cliPath);
-
-  const prompt = buildPrompt(task);
-
-  const { workDir, logFile, timelineDir, env } = prepare(
-    { workspacesRoot: config.workspacesRoot },
+  const input: SessionRunnerInput = {
     task,
-  );
-
-  const resumeSessionId = findResumableSessionId(timelineDir, task.type) ?? undefined;
-  if (resumeSessionId) {
-    log.info(`Task ${task.id} resuming session ${resumeSessionId}`);
-  }
-
-  const session = backend.execute(prompt, {
-    cwd: workDir,
-    model: model || undefined,
-    env,
-    timeout: config.agentTimeout,
-    resumeSessionId,
-  });
-
-  // Context timeline — wait for session ID, then write init entry
-  const earlySessionId = await session.sessionId;
-  await initEntryAsync(timelineDir, createTimelineEntry(task.id, task.prompt, earlySessionId, session.pid));
-
-  const pendingMessages: {
-    seq: number;
-    type: string;
-    tool?: string;
-    call_id?: string;
-    content?: string;
-    input?: Record<string, unknown>;
-    output?: string;
-  }[] = [];
-  let seq = 0;
-  const BATCH_SIZE = Number(process.env.ALOOK_MESSAGE_BATCH_SIZE) || 20;
-  const FLUSH_INTERVAL_MS = Number(process.env.ALOOK_MESSAGE_FLUSH_INTERVAL_MS) || 2000;
-
-  const flushMessages = async () => {
-    if (pendingMessages.length === 0) return;
-    const batch = pendingMessages.splice(0);
-    try {
-      await client.reportMessages(token, task.id, batch);
-    } catch (e) {
-      log.debug(`Task ${task.id} message report failed`, e);
-    }
+    provider,
+    cliPath,
+    model,
+    serverURL: config.serverURL,
+    token,
+    workspacesRoot: config.workspacesRoot,
+    agentTimeout: config.agentTimeout,
   };
 
-  const flushTimer = setInterval(flushMessages, FLUSH_INTERVAL_MS);
-
-  // Log capture — append JSONL to agent.log (best-effort)
-  let logStream: ReturnType<typeof createWriteStream> | undefined;
-  try {
-    logStream = createWriteStream(logFile, { flags: "a" });
-    logStream.write(
-      JSON.stringify({
-        ts: localISOString(),
-        type: "text",
-        role: "user",
-        content: prompt,
-      }) + "\n",
-    );
-  } catch {
-    logStream = undefined;
-  }
-
-  try {
-    for await (const msg of session.messages) {
-      seq++;
-      pendingMessages.push({
-        seq,
-        type: msg.type,
-        tool: msg.tool,
-        call_id: msg.callId,
-        content: msg.content,
-        input: msg.input,
-        output: msg.output,
-      });
-
-      // Context timeline — record assistant text messages
-      if (msg.type === "text" && msg.content) {
-        updateEntry(timelineDir, task.id, (entry) => {
-          entry.agent_responses.push(msg.content!);
-        });
-      }
-
-      if (logStream) {
-        try {
-          logStream.write(
-            JSON.stringify({
-              ts: localISOString(),
-              role: "assistant",
-              ...msg,
-            }) + "\n",
-          );
-        } catch {
-          // skip logging on write failure
-        }
-      }
-
-      if (pendingMessages.length >= BATCH_SIZE) {
-        await flushMessages();
-      }
-    }
-
-    await flushMessages();
-  } finally {
-    clearInterval(flushTimer);
-    logStream?.end();
-  }
-
-  const result = await session.result;
-
-  // Context timeline — finalize entry
-  if (result.status === "completed") {
-    updateEntry(timelineDir, task.id, (entry) => {
-      entry.session_id = result.sessionId || null;
-      entry.pid = null;
-      entry.status = "completed";
-    });
-  } else {
-    updateEntry(timelineDir, task.id, (entry) => {
-      entry.pid = null;
-      entry.status = "failed";
-      entry.errmsg = result.error || "unknown error";
-    });
-  }
-
-  return {
-    status: result.status === "completed" ? "completed" : "failed",
-    comment: result.output || result.error,
-    sessionId: result.sessionId,
-  };
+  const child = spawnSessionRunner(input);
+  child.on("close", () => activeTasks.delete(task.id));
+  log.info(`Task ${task.id} dispatched to session-runner (pid=${child.pid})`);
 }

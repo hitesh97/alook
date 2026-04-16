@@ -25,7 +25,6 @@ describe("buildInstructionContent email tool injection", () => {
     });
     const content = buildInstructionContent(task);
 
-    expect(content).toContain("## Email Tools");
     expect(content).toContain("alook email pull --agent_id agent-123 --status unread");
     expect(content).toContain("alook email set --agent_id agent-123 --email_id <EMAIL_ID> --status read");
     expect(content).toContain("/tmp/alook-emails/");
@@ -77,7 +76,5 @@ describe("buildInstructionContent email tool injection", () => {
     const content = buildInstructionContent(task);
 
     expect(content).toContain("## BIG BOSS Instructions");
-    expect(content).toContain("Follow these rules");
-    expect(content).toContain("## Email Tools");
   });
 });

@@ -75,6 +75,18 @@ export interface ExecOptions {
   resumeSessionId?: string;
 }
 
+/** Serialized input passed from daemon to the detached session-runner process. */
+export interface SessionRunnerInput {
+  task: Task;
+  provider: string;
+  cliPath: string;
+  model: string;
+  serverURL: string;
+  token: string;
+  workspacesRoot: string;
+  agentTimeout: number;
+}
+
 /** Convert a validated TaskApi (snake_case wire format) to the internal Task type. */
 export function fromApiTask(api: import("@alook/shared").TaskApi): Task {
   return {

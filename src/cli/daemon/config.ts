@@ -54,7 +54,6 @@ export interface DaemonConfig {
   deviceName: string;
   runtimeName: string;
   workspacesRoot: string;
-  keepEnvAfterTask: boolean;
   cliVersion: string;
 }
 
@@ -92,7 +91,6 @@ export function loadDaemonConfig(profile?: string): DaemonConfig {
     deviceName: process.env.ALOOK_DAEMON_DEVICE_NAME || h,
     runtimeName: process.env.ALOOK_AGENT_RUNTIME_NAME || "Local Agent",
     workspacesRoot,
-    keepEnvAfterTask: process.env.ALOOK_KEEP_ENV_AFTER_TASK === "true",
     cliVersion: "0.1.0",
   };
 }

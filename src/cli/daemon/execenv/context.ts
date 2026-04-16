@@ -35,7 +35,7 @@ SPECIFIC means you think you just need to use it conditionally, LONG means you n
 ## Context Timeline
 You're a solo working unit inside a powerful personal agent in Alook platform. 
 Your current context is only a fraction of the full timeline of what's your have done.
-The full context timeline is inside \`./.context_timeline/YYYY-MM-DD.jsonl\`.
+The full context timeline is inside './.context_timeline/YYYY-MM-DD.jsonl'.
 Each line of a timeline JSONL is a JSON object with these fields:
 - "task_id" — unique task identifier
 - "session_id" — agent session identifier (null until completion)
@@ -72,16 +72,22 @@ ${task.agent.instructions}
   }
 
   if (task.agent?.emailHandle) {
-    content += `\n## Email Tools
-Run \`alook email pull --agent_id ${task.agentId} --status unread\` to download unread emails to \`/tmp/alook-emails/\`.
-Each email is saved to \`/tmp/alook-emails/<emailId>/\` with:
-- \`metadata.json\` — sender, recipient, subject, date, status
-- \`body.txt\` — plain text body
-- \`body.html\` — HTML body (if available)
-- \`attachments/\` — extracted attachment files (if any)
+    content += `\n## Alook CLI Tools
+You can communicate with the world through Alook CLI.
+Your alook agent id is '${task.agentId}'. remember this, most of alook cli will requires you input your agent id.
 
-After processing an email, mark it as read:
-Run \`alook email set --agent_id ${task.agentId} --email_id <EMAIL_ID> --status read\`
+### Emails
+---
+Run 'alook email pull --agent_id ${task.agentId} --status unread' to download unread emails to '/tmp/alook-emails/'.
+Each email is saved to '/tmp/alook-emails/<emailId>/' with:
+- 'metadata.json' — sender, recipient, subject, date, status
+- 'body.txt' — plain text body
+- 'body.html' — HTML body (if available)
+- 'attachments/' — extracted attachment files (if any)
+---
+Before starting to process an email, mark it as read:
+- Run 'alook email set --agent_id ${task.agentId} --email_id <EMAIL_ID> --status read'
+---
 `;
   }
 

@@ -24,7 +24,7 @@ export interface ContextTimelineEntry {
   task_id: string;
   session_id: string | null;
   pid: number | null;
-  status: "running" | "completed" | "failed";
+  status: "running" | "completed" | "failed" | "killed";
   datetime: string;
   type: string;
   prompt: string;

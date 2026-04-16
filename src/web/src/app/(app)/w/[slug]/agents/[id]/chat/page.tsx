@@ -21,6 +21,23 @@ import { Streamdown } from "streamdown";
 
 const MESSAGE_LIMIT = 10;
 
+/** Sort messages by (created_at, id) ascending — guarantees chronological order. */
+export function sortMessages(msgs: Message[]): Message[] {
+  return msgs.slice().sort((a, b) => {
+    const cmp = a.created_at.localeCompare(b.created_at);
+    if (cmp !== 0) return cmp;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+/** Merge two message arrays by ID (latest wins), then sort chronologically. */
+export function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
+  const merged = new Map<string, Message>();
+  for (const m of existing) merged.set(m.id, m);
+  for (const m of incoming) merged.set(m.id, m);
+  return sortMessages([...merged.values()]);
+}
+
 export default function AgentChatPage() {
   const params = useParams();
   const { workspaceId } = useWorkspace();
@@ -163,13 +180,10 @@ export default function AgentChatPage() {
             pollRef.current = null;
 
             try {
-              // Fetch latest page to pick up the assistant response
+              // Fetch latest messages and merge with any older pagination-loaded messages
               const latest = await listMessages(conversationId, workspaceId);
-              setMessages((prev) => {
-                const existingIds = new Set(prev.map((m) => m.id));
-                const newMsgs = latest.filter((m) => !existingIds.has(m.id));
-                return [...prev, ...newMsgs];
-              });
+              setMessages((prev) => mergeMessages(prev, latest));
+              setTaskMessages([]);
               scrollToBottom();
             } catch {
               toast.error("Failed to refresh messages");
@@ -189,7 +203,7 @@ export default function AgentChatPage() {
         }
       }, 1000);
     },
-    [workspaceId]
+    [workspaceId, scrollToBottom]
   );
 
   useEffect(() => {
