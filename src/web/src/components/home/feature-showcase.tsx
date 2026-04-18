@@ -74,7 +74,7 @@ const features: Feature[] = [
   },
   {
     number: "IV",
-    title: "Long-Term Memory",
+    title: "Memory",
     spec: "STORAGE: LOCAL / PERSISTENCE: INDEFINITE",
     description:
       "Your colleague remembers everything. Context from past conversations, decisions, and preferences — all stored locally, building up over time.",

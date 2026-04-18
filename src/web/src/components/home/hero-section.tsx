@@ -181,7 +181,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             "Email",
             "Calendar",
             "Always-On",
-            "Long-Term Memory",
+            "Memory",
           ].map((spec) => (
             <span
               key={spec}
