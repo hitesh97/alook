@@ -25,6 +25,7 @@ import {
   Clock,
   Repeat as RepeatIcon,
   User,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -34,14 +35,15 @@ import type {
 } from "@alook/shared";
 import { CalendarDatePicker } from "./calendar-date-picker";
 import { CalendarTimePicker } from "./calendar-time-picker";
-
-const REPEAT_OPTIONS = [
-  { value: "", label: "Does not repeat" },
-  { value: "1hour", label: "Every hour" },
-  { value: "1day", label: "Every day" },
-  { value: "1week", label: "Every week" },
-  { value: "1month", label: "Every month" },
-];
+import {
+  type RepeatUnit,
+  parseRepeatInterval,
+  formatRepeatInterval,
+  unitLabel,
+  isValidUnit,
+  REPEAT_UNITS,
+  PRESET_INTERVALS,
+} from "./repeat-interval-utils";
 
 export interface CreateFormValues {
   agent_id: string;
@@ -248,7 +250,16 @@ export function CalendarEventSheet({
   const [description, setDescription] = useState("");
   const [dateValue, setDateValue] = useState<Date>(new Date());
   const [timeValue, setTimeValue] = useState<string>("09:00");
-  const [repeat, setRepeat] = useState("");
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [repeatCount, setRepeatCount] = useState("1");
+  const [repeatUnit, setRepeatUnit] = useState<RepeatUnit>("day");
+
+  const repeat = useMemo(() => {
+    if (!repeatEnabled) return "";
+    const n = parseInt(repeatCount, 10);
+    if (!n || n < 1) return "";
+    return formatRepeatInterval(n, repeatUnit);
+  }, [repeatEnabled, repeatCount, repeatUnit]);
   const [stopDate, setStopDate] = useState<Date | null>(null);
   const [scopeOpen, setScopeOpen] = useState(false);
   const [deleteScopeOpen, setDeleteScopeOpen] = useState(false);
@@ -273,7 +284,16 @@ export function CalendarEventSheet({
       setDescription(event.description ?? "");
       setDateValue(scheduled);
       setTimeValue(parseTime(scheduled));
-      setRepeat(event.repeat_interval ?? "");
+      const parsed = parseRepeatInterval(event.repeat_interval ?? "");
+      if (parsed) {
+        setRepeatEnabled(true);
+        setRepeatCount(String(parsed.count));
+        setRepeatUnit(parsed.unit);
+      } else {
+        setRepeatEnabled(false);
+        setRepeatCount("1");
+        setRepeatUnit("day");
+      }
       setStopDate(
         event.repeat_stop_at ? new Date(event.repeat_stop_at) : null
       );
@@ -283,7 +303,9 @@ export function CalendarEventSheet({
       setDescription("");
       setDateValue(defaultDate ?? new Date());
       setTimeValue(nextSlotTime(new Date()));
-      setRepeat("");
+      setRepeatEnabled(false);
+      setRepeatCount("1");
+      setRepeatUnit("day");
       setStopDate(null);
     }
     // Seed only on open transition / event id change.
@@ -313,6 +335,10 @@ export function CalendarEventSheet({
     if (!title.trim()) return "Title is required";
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(timeValue)) {
       return "Time must be HH:MM in 24-hour format";
+    }
+    if (repeatEnabled) {
+      const n = parseInt(repeatCount, 10);
+      if (!n || n < 1) return "Repeat count must be a positive number";
     }
     if (stopDate && !repeat) {
       return "Stop date requires a repeat interval";
@@ -560,25 +586,84 @@ export function CalendarEventSheet({
       </PropertyRow>
 
       <PropertyRow icon={<RepeatIcon className="size-3.5" />}>
-        <select
-          aria-label="Repeat"
-          value={repeat}
-          onChange={(e) => {
-            const next = e.target.value;
-            setRepeat(next);
-            // Stop date only makes sense with a repeat interval. Clearing
-            // the interval hides the row but must also drop the underlying
-            // state so validation / patch-building don't see stale values.
-            if (!next) setStopDate(null);
-          }}
-          className={GHOST_SELECT}
-        >
-          {REPEAT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        {!repeatEnabled ? (
+          <select
+            aria-label="Repeat"
+            value=""
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              if (v === "__custom__") {
+                setRepeatEnabled(true);
+                setRepeatCount("1");
+                setRepeatUnit("day");
+              } else {
+                const parsed = parseRepeatInterval(v);
+                if (parsed) {
+                  setRepeatEnabled(true);
+                  setRepeatCount(String(parsed.count));
+                  setRepeatUnit(parsed.unit);
+                }
+              }
+            }}
+            className={GHOST_SELECT}
+          >
+            <option value="">Does not repeat</option>
+            {PRESET_INTERVALS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+            <option value="__custom__">Custom…</option>
+          </select>
+        ) : (
+          <div className="-ml-1.5 flex items-center gap-0.5">
+            <span className="px-1 text-sm text-foreground">Every</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              aria-label="Repeat count"
+              value={repeatCount}
+              onChange={(e) => {
+                setRepeatCount(e.target.value.replace(/[^\d]/g, ""));
+              }}
+              onBlur={() => {
+                const n = parseInt(repeatCount, 10);
+                if (!n || n < 1) setRepeatCount("1");
+              }}
+              maxLength={4}
+              style={{ width: `${Math.max(1, repeatCount.length) + 1.5}ch` }}
+              className="h-7 shrink-0 border-0 bg-transparent px-0 text-center text-sm tabular-nums text-foreground rounded-md outline-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-0 transition-colors"
+            />
+            <select
+              aria-label="Repeat unit"
+              value={repeatUnit}
+              onChange={(e) => {
+                if (isValidUnit(e.target.value)) setRepeatUnit(e.target.value);
+              }}
+              className="h-7 border-0 bg-transparent px-1 text-center text-sm text-foreground rounded-md outline-none appearance-none hover:bg-accent focus-visible:bg-accent focus-visible:ring-0 transition-colors"
+            >
+              {REPEAT_UNITS.map((u) => (
+                <option key={u} value={u}>
+                  {unitLabel(u, parseInt(repeatCount, 10) || 1)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              aria-label="Remove repeat"
+              onClick={() => {
+                setRepeatEnabled(false);
+                setRepeatCount("1");
+                setRepeatUnit("day");
+                setStopDate(null);
+              }}
+              className="inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <X className="size-3" />
+            </button>
+          </div>
+        )}
       </PropertyRow>
 
       {repeat && (

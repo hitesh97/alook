@@ -20,6 +20,7 @@ const RAW_DETECTION_METHODS = new Set([
   "thread/started",
   "item/started",
   "item/completed",
+  "item/agentMessage/delta",
 ]);
 
 /** Extract thread ID from a thread/start response. */
@@ -74,8 +75,11 @@ export class CodexBackend implements AgentBackend {
     // Protocol detection state
     let notificationProtocol: NotificationProtocol = "unknown";
 
-    // Turn deduplication
+    // Turn lifecycle state
+    let turnStarted = false;
+    let turnDoneTriggered = false;
     let lastCompletedTurnId = "";
+    let turnError = "";
 
     // Pending RPC callbacks
     const pendingRequests = new Map<
@@ -134,12 +138,16 @@ export class CodexBackend implements AgentBackend {
       pendingRequests.clear();
     };
 
+    const setTurnError = (msg: string) => {
+      if (msg && !turnError) turnError = msg;
+    };
+
     const triggerTurnDone = (aborted: boolean) => {
-      if (aborted) {
-        resultStatus = "aborted";
-      } else {
-        resultStatus = "completed";
-      }
+      if (turnDoneTriggered) return;
+      turnDoneTriggered = true;
+      resultStatus = aborted ? "aborted" : "completed";
+      try { proc.stdin?.end(); } catch { /* already closed */ }
+      try { proc.kill("SIGTERM"); } catch { /* already dead */ }
     };
 
     const handleServerRequest = (msg: JsonRpcMessage) => {
@@ -177,36 +185,58 @@ export class CodexBackend implements AgentBackend {
         notificationProtocol = "raw";
       }
 
-      // thread/status/changed is raw-only but NOT a detection trigger
-      if (method === "thread/status/changed" && notificationProtocol === "legacy") {
+      // thread/status/changed and error are raw-only but NOT detection triggers
+      if ((method === "thread/status/changed" || method === "error") && notificationProtocol === "legacy") {
+        return;
+      }
+
+      // Subagent thread filtering: ignore notifications from threads other than ours
+      const notifThreadId = params.threadId as string | undefined;
+      if (sessionId && notifThreadId && notifThreadId !== sessionId) {
         return;
       }
 
       switch (method) {
         case "turn/started": {
+          turnStarted = true;
           break;
         }
 
         case "turn/completed": {
-          const turnId = params.turnId as string | undefined;
-          if (turnId && turnId === lastCompletedTurnId) return; // deduplicate
+          const turn = params.turn as Record<string, unknown> | undefined;
+          const turnId = (turn?.id as string) || (params.turnId as string) || "";
+          if (turnId && turnId === lastCompletedTurnId) return;
           if (turnId) lastCompletedTurnId = turnId;
 
-          const status = params.status as string | undefined;
+          const status = (turn?.status as string) || (params.status as string) || "";
           if (status === "completed" || status === "finished") {
             triggerTurnDone(false);
-          } else if (status === "cancelled" || status === "aborted") {
+          } else if (status === "cancelled" || status === "aborted" || status === "interrupted") {
             triggerTurnDone(true);
           } else if (status === "error" || status === "failed") {
-            resultStatus = "failed";
-            lastError = (params.output as string) || "turn failed";
+            const turnErr = turn?.error as Record<string, unknown> | undefined;
+            setTurnError((turnErr?.message as string) || "codex turn failed");
+            triggerTurnDone(false);
+          }
+          break;
+        }
+
+        case "error": {
+          const errObj = params.error as Record<string, unknown> | undefined;
+          const errMsg = (errObj?.message as string) || (params.message as string) || "";
+          const willRetry = params.willRetry === true;
+          if (errMsg && !willRetry) {
+            setTurnError(errMsg);
           }
           break;
         }
 
         case "thread/status/changed": {
-          const status = params.status as string | undefined;
-          if (status === "idle") {
+          const statusObj = params.status as Record<string, unknown> | string | undefined;
+          const statusType = typeof statusObj === "object" && statusObj !== null
+            ? (statusObj.type as string) || ""
+            : (statusObj as string) || "";
+          if (statusType === "idle" && turnStarted) {
             triggerTurnDone(false);
           }
           break;
@@ -254,15 +284,21 @@ export class CodexBackend implements AgentBackend {
               output: "",
             });
           } else if (itemType === "agentMessage") {
-            const content = item.content as
-              | { type: string; text?: string }[]
-              | undefined;
-            if (Array.isArray(content)) {
-              for (const block of content) {
-                if (block.type === "output_text" || block.type === "text") {
-                  if (block.text) {
-                    pushMessage({ type: "text", content: block.text });
-                    lastOutput = block.text;
+            const flatText = item.text as string | undefined;
+            if (flatText) {
+              pushMessage({ type: "text", content: flatText });
+              lastOutput = flatText;
+            } else {
+              const content = item.content as
+                | { type: string; text?: string }[]
+                | undefined;
+              if (Array.isArray(content)) {
+                for (const block of content) {
+                  if (block.type === "output_text" || block.type === "text") {
+                    if (block.text) {
+                      pushMessage({ type: "text", content: block.text });
+                      lastOutput = block.text;
+                    }
                   }
                 }
               }
@@ -475,6 +511,11 @@ export class CodexBackend implements AgentBackend {
         const stderr = stderrChunks.join("");
         if (stderr && !lastError) {
           lastError = stderr;
+        }
+
+        if (turnError) {
+          resultStatus = "failed";
+          lastError = turnError;
         }
 
         // Resolve sessionId promise (fallback if handshake never completed)

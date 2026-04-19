@@ -10,6 +10,7 @@ function createMockProc() {
   const stdinWrites: string[] = [];
   const stdout = new Readable({ read() {} });
   const stderr = new Readable({ read() {} });
+  const stdinEnd = vi.fn();
   const proc = Object.assign(new EventEmitter(), {
     stdout,
     stderr,
@@ -18,11 +19,12 @@ function createMockProc() {
         stdinWrites.push(data);
         return true;
       },
+      end: stdinEnd,
     },
     kill: vi.fn(),
     pid: 12345,
   });
-  return { proc, stdout, stderr, stdinWrites };
+  return { proc, stdout, stderr, stdinWrites, stdinEnd };
 }
 
 vi.mock("child_process", () => ({
@@ -274,5 +276,96 @@ describe("OpenCodeBackend", () => {
     const result = await session.result;
     expect(result.output).toBe("final output");
     expect(result.sessionId).toBe("sess_done");
+  });
+
+  // --- Turn completion: process lifecycle ---
+
+  it("done event closes stdin and kills the process", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    mock.stdout.push(JSON.stringify({ type: "done", output: "all done" }) + "\n");
+    await tick();
+
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    expect(mock.proc.kill).toHaveBeenCalledWith("SIGTERM");
+
+    mock.proc.emit("close", 0);
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+    expect(result.output).toBe("all done");
+  });
+
+  it("complete event closes stdin and kills the process", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    mock.stdout.push(JSON.stringify({ type: "complete", output: "finished" }) + "\n");
+    await tick();
+
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    expect(mock.proc.kill).toHaveBeenCalledWith("SIGTERM");
+
+    mock.proc.emit("close", 0);
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+  });
+
+  it("error event closes stdin and kills the process", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    mock.stdout.push(JSON.stringify({ type: "error", message: "fatal error" }) + "\n");
+    await tick();
+
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    expect(mock.proc.kill).toHaveBeenCalledWith("SIGTERM");
+
+    mock.proc.emit("close", 1);
+    const result = await session.result;
+    expect(result.error).toBe("fatal error");
+  });
+
+  it("turnDone is idempotent — done after error does not double-kill", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    mock.stdout.push(JSON.stringify({ type: "error", message: "boom" }) + "\n");
+    await tick();
+    mock.stdout.push(JSON.stringify({ type: "done", output: "done anyway" }) + "\n");
+    await tick();
+
+    expect(mock.stdinEnd).toHaveBeenCalledTimes(1);
+    expect(mock.proc.kill).toHaveBeenCalledTimes(1);
+
+    mock.proc.emit("close", 1);
+    await session.result;
+  });
+
+  it("full flow: message → tool_call → tool_result → done → result resolves", async () => {
+    const session = backend.execute("fix the bug", { cwd: "/tmp" });
+    const mock = getMock();
+
+    mock.stdout.push(JSON.stringify({ type: "session", session_id: "sess_123" }) + "\n");
+    mock.stdout.push(JSON.stringify({ type: "message", role: "assistant", content: "Let me check" }) + "\n");
+    mock.stdout.push(JSON.stringify({ type: "tool_call", name: "read_file", call_id: "c1", input: { path: "/bug.ts" } }) + "\n");
+    mock.stdout.push(JSON.stringify({ type: "tool_result", call_id: "c1", output: "buggy code" }) + "\n");
+    mock.stdout.push(JSON.stringify({ type: "message", role: "assistant", content: "Found the bug" }) + "\n");
+    mock.stdout.push(JSON.stringify({ type: "done", output: "Found the bug", session_id: "sess_123" }) + "\n");
+    await tick();
+
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+    expect(result.output).toBe("Found the bug");
+    expect(result.sessionId).toBe("sess_123");
+
+    const messages = await collectMessages(session.messages);
+    expect(messages).toContainEqual({ type: "text", content: "Let me check" });
+    expect(messages).toContainEqual({ type: "text", content: "Found the bug" });
+    expect(messages).toContainEqual(expect.objectContaining({ type: "tool-use", tool: "read_file", callId: "c1" }));
+    expect(messages).toContainEqual(expect.objectContaining({ type: "tool-result", callId: "c1", output: "buggy code" }));
   });
 });

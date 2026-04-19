@@ -112,7 +112,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             </h1>
             <p
               ref={sublineRef}
-              className="max-w-lg text-center leading-relaxed px-2"
+              className="hidden sm:block max-w-lg text-center leading-relaxed px-2"
               style={{
                 fontFamily: "var(--font-crt)",
                 color: "var(--landing-text-muted)",
@@ -173,7 +173,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
           {isLoggedIn ? (
             <a
               href="/workspaces?auto"
-              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm transition-all duration-200 hover:opacity-80"
+              className="hidden sm:inline-flex items-center gap-2 px-6 py-2.5 text-sm transition-all duration-200 hover:opacity-80"
               style={{
                 fontFamily: "var(--font-mono)",
                 color: "var(--landing-text)",
@@ -191,7 +191,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
           ) : (
             <a
               href="/sign-in"
-              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm transition-all duration-200 hover:opacity-80"
+              className="hidden sm:inline-flex items-center gap-2 px-6 py-2.5 text-sm transition-all duration-200 hover:opacity-80"
               style={{
                 fontFamily: "var(--font-mono)",
                 color: "var(--landing-text)",
@@ -208,6 +208,15 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
             </a>
           )}
         </div>
+        <p
+          className="mt-4 sm:hidden text-center text-xs"
+          style={{
+            fontFamily: "var(--font-mono)",
+            color: "var(--landing-text-muted)",
+          }}
+        >
+          For the full experience, open on a desktop browser.
+        </p>
       </div>
     </section>
   );

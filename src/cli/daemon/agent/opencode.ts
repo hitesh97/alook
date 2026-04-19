@@ -46,6 +46,14 @@ export class OpenCodeBackend implements AgentBackend {
       resolveSessionId = resolve;
     });
 
+    let turnDoneTriggered = false;
+    const turnDone = () => {
+      if (turnDoneTriggered) return;
+      turnDoneTriggered = true;
+      try { proc.stdin?.end(); } catch { /* already closed */ }
+      try { proc.kill("SIGTERM"); } catch { /* already dead */ }
+    };
+
     const messageQueue: AgentMessage[] = [];
     let messageResolve: (() => void) | null = null;
     let messageDone = false;
@@ -130,6 +138,7 @@ export class OpenCodeBackend implements AgentBackend {
             const content = (event.message as string) || (event.content as string) || "";
             lastError = content;
             pushMessage({ type: "error", content });
+            turnDone();
             break;
           }
 
@@ -146,6 +155,7 @@ export class OpenCodeBackend implements AgentBackend {
               resultStatus = "failed";
               if (!lastError) lastError = output || "task failed";
             }
+            turnDone();
             break;
           }
 

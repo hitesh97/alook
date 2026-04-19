@@ -9,6 +9,7 @@ function createMockProc() {
   const stdinWrites: string[] = [];
   const stdout = new Readable({ read() {} });
   const stderr = new Readable({ read() {} });
+  const stdinEnd = vi.fn();
   const proc = Object.assign(new EventEmitter(), {
     stdout,
     stderr,
@@ -17,11 +18,12 @@ function createMockProc() {
         stdinWrites.push(data);
         return true;
       },
+      end: stdinEnd,
     },
     kill: vi.fn(),
     pid: 12345,
   });
-  return { proc, stdout, stderr, stdinWrites };
+  return { proc, stdout, stderr, stdinWrites, stdinEnd };
 }
 
 vi.mock("child_process", () => ({
@@ -394,19 +396,33 @@ describe("CodexBackend", () => {
   });
 
   // Raw protocol tests
-  it("raw protocol — turn/started sets status and captures turnId", async () => {
+  it("raw protocol — turn/started sets turnStarted flag", async () => {
     const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
-    sendNotification("turn/started", { turnId: "turn_1" });
+    sendNotification("turn/started", { turn: { id: "turn_1" } });
     mock.proc.emit("close", 0);
 
     const messages = await collectMessages(session.messages);
     expect(messages).not.toContainEqual(expect.objectContaining({ type: "status" }));
   });
 
-  it("raw protocol — turn/completed with completed triggers turn done", async () => {
+  it("raw protocol — turn/completed (nested) with completed triggers turn done", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    expect(mock.proc.kill).toHaveBeenCalledWith("SIGTERM");
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+  });
+
+  it("raw protocol — turn/completed (flat params) backward compat", async () => {
     const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
@@ -423,11 +439,49 @@ describe("CodexBackend", () => {
     const mock = getMock();
 
     await completeHandshake();
-    sendNotification("turn/completed", { turnId: "turn_1", status: "cancelled" });
+    sendNotification("turn/completed", { turn: { id: "turn_1", status: "cancelled" } });
     mock.proc.emit("close", 0);
 
     const result = await session.result;
     expect(result.status).toBe("aborted");
+  });
+
+  it("raw protocol — turn/completed with interrupted triggers aborted", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("turn/completed", { turn: { id: "turn_2", status: "interrupted" } });
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("aborted");
+  });
+
+  it("raw protocol — turn/completed with failed captures error message", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("turn/completed", { turn: { id: "turn_f", status: "failed", error: { message: "rate limit exceeded" } } });
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("failed");
+    expect(result.error).toBe("rate limit exceeded");
+  });
+
+  it("raw protocol — turn/completed with failed uses fallback message when no error.message", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("turn/completed", { turn: { id: "turn_f2", status: "failed" } });
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("failed");
+    expect(result.error).toBe("codex turn failed");
   });
 
   it("raw protocol — duplicate turn/completed for same turnId is deduplicated", async () => {
@@ -435,8 +489,8 @@ describe("CodexBackend", () => {
     const mock = getMock();
 
     await completeHandshake();
-    sendNotification("turn/completed", { turnId: "turn_1", status: "completed" });
-    sendNotification("turn/completed", { turnId: "turn_1", status: "failed", output: "should not override" });
+    sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
+    sendNotification("turn/completed", { turn: { id: "turn_1", status: "failed" } });
     mock.proc.emit("close", 0);
 
     const result = await session.result;
@@ -503,7 +557,41 @@ describe("CodexBackend", () => {
     );
   });
 
-  it("raw protocol — item/completed (agentMessage, phase=final_answer) emits text + turn done", async () => {
+  it("raw protocol — item/completed (agentMessage) reads item.text (flat)", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("item/completed", {
+      item: {
+        type: "agentMessage",
+        text: "Flat text answer",
+      },
+    });
+    mock.proc.emit("close", 0);
+
+    const messages = await collectMessages(session.messages);
+    expect(messages).toContainEqual({ type: "text", content: "Flat text answer" });
+  });
+
+  it("raw protocol — item/completed (agentMessage) falls back to item.content[] when item.text absent", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("item/completed", {
+      item: {
+        type: "agentMessage",
+        content: [{ type: "text", text: "Content array answer" }],
+      },
+    });
+    mock.proc.emit("close", 0);
+
+    const messages = await collectMessages(session.messages);
+    expect(messages).toContainEqual({ type: "text", content: "Content array answer" });
+  });
+
+  it("raw protocol — item/completed (agentMessage, phase=final_answer) triggers turn done", async () => {
     const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
@@ -512,26 +600,230 @@ describe("CodexBackend", () => {
       item: {
         type: "agentMessage",
         phase: "final_answer",
-        content: [{ type: "text", text: "Here is the answer" }],
+        text: "Here is the answer",
       },
     });
+    expect(mock.stdinEnd).toHaveBeenCalled();
     mock.proc.emit("close", 0);
 
     const messages = await collectMessages(session.messages);
     expect(messages).toContainEqual({ type: "text", content: "Here is the answer" });
   });
 
-  it("raw protocol — thread/status/changed (idle) triggers turn done", async () => {
+  it("raw protocol — thread/status/changed (nested idle) triggers turn done when turnStarted", async () => {
     const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
-    sendNotification("turn/started", { turnId: "turn_1" });
+    sendNotification("turn/started", { turn: { id: "turn_1" } });
+    sendNotification("thread/status/changed", { status: { type: "idle" } });
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+  });
+
+  it("raw protocol — thread/status/changed (flat idle) backward compat", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("turn/started", { turn: { id: "turn_1" } });
     sendNotification("thread/status/changed", { status: "idle" });
     mock.proc.emit("close", 0);
 
     const result = await session.result;
     expect(result.status).toBe("completed");
+  });
+
+  it("raw protocol — thread/status/changed (idle) does NOT trigger turn done if turnStarted is false", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    // No turn/started sent — turnStarted remains false
+    sendNotification("thread/status/changed", { status: { type: "idle" } });
+    expect(mock.stdinEnd).not.toHaveBeenCalled();
+    mock.proc.emit("close", 0);
+
+    // Process exits with code 0 but turnDone was never triggered, status stays "completed" (default)
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+  });
+
+  // triggerTurnDone idempotency
+  it("triggerTurnDone is idempotent — second call does not double-kill", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
+    // First call: stdin.end + kill
+    expect(mock.stdinEnd).toHaveBeenCalledTimes(1);
+    expect(mock.proc.kill).toHaveBeenCalledTimes(1);
+
+    // Second completion signal (e.g. thread/status/changed also fires)
+    sendNotification("turn/started", { turn: { id: "turn_1" } });
+    sendNotification("thread/status/changed", { status: { type: "idle" } });
+    // Should not call again
+    expect(mock.stdinEnd).toHaveBeenCalledTimes(1);
+    expect(mock.proc.kill).toHaveBeenCalledTimes(1);
+
+    mock.proc.emit("close", 0);
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+  });
+
+  // Subagent thread filtering
+  it("subagent thread notifications are ignored — no text, no turn completion", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake("thread_main");
+
+    // Subagent sends agentMessage from different thread
+    sendNotification("item/completed", {
+      threadId: "thread_subagent",
+      item: { type: "agentMessage", text: "subagent leak" },
+    });
+    // Subagent sends turn/completed from different thread
+    sendNotification("turn/completed", {
+      threadId: "thread_subagent",
+      turn: { id: "sub_turn", status: "completed" },
+    });
+
+    expect(mock.stdinEnd).not.toHaveBeenCalled();
+
+    // Main thread completes normally
+    sendNotification("turn/completed", {
+      threadId: "thread_main",
+      turn: { id: "main_turn", status: "completed" },
+    });
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    mock.proc.emit("close", 0);
+
+    const messages = await collectMessages(session.messages);
+    expect(messages).not.toContainEqual(expect.objectContaining({ content: "subagent leak" }));
+  });
+
+  it("subagent item/completed with phase=final_answer from different thread is ignored", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake("thread_main");
+
+    sendNotification("item/completed", {
+      threadId: "thread_subagent",
+      item: { type: "agentMessage", text: "subagent final", phase: "final_answer" },
+    });
+
+    expect(mock.stdinEnd).not.toHaveBeenCalled();
+    mock.proc.emit("close", 0);
+
+    const messages = await collectMessages(session.messages);
+    expect(messages).not.toContainEqual(expect.objectContaining({ content: "subagent final" }));
+  });
+
+  // Error notifications
+  it("error notification with willRetry=false captures turnError", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("error", { error: { message: "server crashed" }, willRetry: false });
+    // error does NOT trigger turnDone — the process may still send turn/completed
+    expect(mock.stdinEnd).not.toHaveBeenCalled();
+    mock.proc.emit("close", 1);
+
+    const result = await session.result;
+    expect(result.status).toBe("failed");
+    expect(result.error).toBe("server crashed");
+  });
+
+  it("error notification with willRetry=true does NOT set turnError", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("error", { error: { message: "reconnecting" }, willRetry: true });
+    sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+    expect(result.error).toBe("");
+  });
+
+  // turnError first-write-wins
+  it("turnError has first-write-wins semantics", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    // First error
+    sendNotification("error", { error: { message: "first error" }, willRetry: false });
+    // Second error — should be ignored
+    sendNotification("error", { error: { message: "second error" }, willRetry: false });
+    mock.proc.emit("close", 1);
+
+    const result = await session.result;
+    expect(result.error).toBe("first error");
+  });
+
+  // item/agentMessage/delta protocol detection
+  it("item/agentMessage/delta triggers raw protocol detection", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake();
+    sendNotification("item/agentMessage/delta", {
+      itemId: "msg_1",
+      delta: "Hello",
+    });
+    // Should be logged as debug (default case) since no specific handler
+    // But protocol should now be locked to raw
+    sendNotification("codex/event", { type: "agent_message", text: "should be ignored" });
+    mock.proc.emit("close", 0);
+
+    const messages = await collectMessages(session.messages);
+    // The legacy event should NOT produce a text message since protocol is locked to raw
+    expect(messages).not.toContainEqual({ type: "text", content: "should be ignored" });
+  });
+
+  // Full integration test
+  it("full integration: handshake → deltas → turn/completed → result resolves", async () => {
+    const session = backend.execute("hello world", { cwd: "/tmp" });
+    const mock = getMock();
+
+    await completeHandshake("thread_xyz");
+
+    // Agent starts turn
+    sendNotification("turn/started", { threadId: "thread_xyz", turn: { id: "turn_1" } });
+
+    // Agent sends deltas (logged as debug, not accumulated)
+    sendNotification("item/agentMessage/delta", { threadId: "thread_xyz", itemId: "msg_1", delta: "Hi" });
+    sendNotification("item/agentMessage/delta", { threadId: "thread_xyz", itemId: "msg_1", delta: " there" });
+
+    // Agent completes with full text
+    sendNotification("item/completed", {
+      threadId: "thread_xyz",
+      item: { type: "agentMessage", id: "msg_1", text: "Hi there" },
+    });
+
+    // Turn completes
+    sendNotification("turn/completed", { threadId: "thread_xyz", turn: { id: "turn_1", status: "completed" } });
+
+    expect(mock.stdinEnd).toHaveBeenCalled();
+    mock.proc.emit("close", 0);
+
+    const result = await session.result;
+    expect(result.status).toBe("completed");
+    expect(result.output).toBe("Hi there");
+    expect(result.sessionId).toBe("thread_xyz");
+
+    const messages = await collectMessages(session.messages);
+    expect(messages).toContainEqual({ type: "text", content: "Hi there" });
   });
 
   // Protocol detection / locking

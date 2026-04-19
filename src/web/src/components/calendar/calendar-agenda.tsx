@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import type { CalendarEvent, Agent } from "@alook/shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import { agentColor, dateKey } from "./calendar-month-grid";
+import { formatRepeatDisplay } from "./repeat-interval-utils";
 
 export interface CalendarAgendaProps {
   events: CalendarEvent[];
@@ -137,7 +138,7 @@ export function CalendarAgenda({
                     <span className="flex-1 truncate text-sm">{ev.title}</span>
                     {ev.repeat_interval && (
                       <span className="shrink-0 text-[10px] text-muted-foreground">
-                        every {ev.repeat_interval}
+                        {formatRepeatDisplay(ev.repeat_interval!)}
                       </span>
                     )}
                   </button>
