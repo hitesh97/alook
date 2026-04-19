@@ -37,6 +37,7 @@ const mockCreateTimelineEntry = vi.fn(
     type: string,
     sessionId?: string,
     pid?: number,
+    provider?: string,
   ) => ({
     task_id: taskId,
     session_id: sessionId || null,
@@ -47,6 +48,7 @@ const mockCreateTimelineEntry = vi.fn(
     prompt,
     agent_responses: [],
     errmsg: null,
+    provider: provider || null,
   }),
 );
 const mockFindResumableSessionId = vi.fn(() => null);
@@ -210,6 +212,7 @@ describe("session-runner runSession", () => {
       "user_dm_message",
       "sess-1",
       process.pid,
+      "claude",
     );
     expect(mockInitEntryAsync).toHaveBeenCalledWith(
       "/tmp/ws/ws1/agent1/workdir/.context_timeline",
@@ -336,6 +339,7 @@ describe("session-runner runSession", () => {
     expect(mockFindResumableSessionId).toHaveBeenCalledWith(
       "/tmp/ws/ws1/agent1/workdir/.context_timeline",
       "user_dm_message",
+      "claude",
     );
     expect(mockBackendExecute).toHaveBeenCalledWith(
       expect.any(String),
@@ -552,5 +556,87 @@ describe("session-runner runSession", () => {
     const secondLine = JSON.parse(mockWrite.mock.calls[1][0].replace("\n", ""));
     expect(secondLine.role).toBe("assistant");
     expect(secondLine.type).toBe("text");
+  });
+
+  it("passes provider to createTimelineEntry", async () => {
+    setupBackend([], {
+      status: "completed",
+      output: "Done",
+      error: "",
+      durationMs: 100,
+      sessionId: "sess-1",
+    });
+
+    await runSession(makeInput({ provider: "codex" }));
+
+    expect(mockCreateTimelineEntry).toHaveBeenCalledWith(
+      "t1",
+      "do the thing",
+      "user_dm_message",
+      "sess-1",
+      process.pid,
+      "codex",
+    );
+  });
+
+  it("passes provider to findResumableSessionId", async () => {
+    setupBackend([], {
+      status: "completed",
+      output: "Done",
+      error: "",
+      durationMs: 100,
+      sessionId: "sess-1",
+    });
+
+    await runSession(makeInput({ provider: "codex" }));
+
+    expect(mockFindResumableSessionId).toHaveBeenCalledWith(
+      "/tmp/ws/ws1/agent1/workdir/.context_timeline",
+      "user_dm_message",
+      "codex",
+    );
+  });
+
+  it("session resume works when findResumableSessionId returns a session for matching provider", async () => {
+    mockFindResumableSessionId.mockReturnValueOnce("prev-sess-codex");
+
+    setupBackend([], {
+      status: "completed",
+      output: "Resumed",
+      error: "",
+      durationMs: 100,
+      sessionId: "sess-1",
+    });
+
+    await runSession(makeInput({ provider: "codex" }));
+
+    expect(mockBackendExecute).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ resumeSessionId: "prev-sess-codex" }),
+    );
+  });
+
+  it("session starts fresh when provider has no matching prior entry", async () => {
+    mockFindResumableSessionId.mockReturnValueOnce(null);
+
+    setupBackend([], {
+      status: "completed",
+      output: "Fresh",
+      error: "",
+      durationMs: 100,
+      sessionId: "sess-1",
+    });
+
+    await runSession(makeInput({ provider: "opencode" }));
+
+    expect(mockFindResumableSessionId).toHaveBeenCalledWith(
+      "/tmp/ws/ws1/agent1/workdir/.context_timeline",
+      "user_dm_message",
+      "opencode",
+    );
+    expect(mockBackendExecute).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ resumeSessionId: undefined }),
+    );
   });
 });

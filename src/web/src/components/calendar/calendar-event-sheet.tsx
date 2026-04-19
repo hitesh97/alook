@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { MarkdownEditor, isEmptyHtml } from "@/components/ui/markdown-editor";
 import {
   CalendarDays,
@@ -467,25 +466,42 @@ export function CalendarEventSheet({
     ? title.trim() || "Untitled event"
     : title.trim() || "New calendar event";
 
+  const titleRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeTitle = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+
+  useEffect(() => {
+    resizeTitle(titleRef.current);
+  }, [title]);
+
   const titleInput = (
-    <Input
+    <textarea
+      ref={(el) => {
+        titleRef.current = el;
+        resizeTitle(el);
+      }}
       aria-label="Event title"
       value={title}
-      onChange={(e) => setTitle(e.target.value)}
+      onChange={(e) => {
+        setTitle(e.target.value);
+        resizeTitle(e.target);
+      }}
       onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          // Input is single-line, so Enter would otherwise submit the create
-          // form. Intercept and move focus into the description editor — a
-          // Notion-like flow the user expects after naming the event.
+        if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
           focusDescription();
         }
       }}
       placeholder={mode === "edit" ? "Untitled event" : "New event"}
       autoFocus={mode === "create"}
+      rows={1}
       className={cn(
-        "h-auto rounded-none border-0 bg-transparent px-0 py-0 font-news text-4xl md:text-5xl font-medium leading-[1.1] tracking-tight",
-        "shadow-none focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
+        "w-full resize-none overflow-hidden rounded-none border-0 bg-transparent px-0 py-1 font-news text-2xl md:text-3xl font-medium leading-[1.2] tracking-tight",
+        "shadow-none outline-none focus-visible:border-0 focus-visible:ring-0 focus-visible:ring-offset-0",
         "placeholder:text-muted-foreground/40 placeholder:font-normal"
       )}
     />

@@ -12,6 +12,7 @@ import {
 import { join } from "path";
 import { tmpdir } from "os";
 import {
+  buildInstructionContent,
   contentHash,
   hasContentChanged,
   ensureSymlinks,
@@ -36,6 +37,20 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     ...overrides,
   };
 }
+
+describe("buildInstructionContent", () => {
+  it("uses agent name in opening line when provided", () => {
+    const task = makeTask({ agent: { name: "My Assistant", instructions: "" } });
+    const content = buildInstructionContent(task);
+    expect(content).toMatch(/^You're My Assistant in the Alook Platform\./);
+  });
+
+  it("falls back to 'Alook Agent' when agent is undefined", () => {
+    const task = makeTask({ agent: undefined });
+    const content = buildInstructionContent(task);
+    expect(content).toMatch(/^You're Alook Agent in the Alook Platform\./);
+  });
+});
 
 describe("contentHash", () => {
   it("returns consistent hex string for same input", () => {

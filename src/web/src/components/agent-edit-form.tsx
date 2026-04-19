@@ -10,6 +10,7 @@ import type { Agent } from "@alook/shared";
 import { isValidHandle } from "@alook/shared";
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import { cn } from "@/lib/utils";
+import { LockIcon } from "lucide-react";
 
 function nameToHandle(name: string): string {
   return name
@@ -172,16 +173,21 @@ export function AgentEditForm({
           </p>
         </div>
 
-        {!agent && (
-          <div className="space-y-1.5">
-            <Label htmlFor="agent-runtime">Runtime</Label>
-            <RuntimeSelect
-              value={runtimeId}
-              onValueChange={setRuntimeId}
-              runtimes={runtimes}
-            />
-          </div>
-        )}
+        <div className="space-y-1.5">
+          <Label htmlFor="agent-runtime">Runtime</Label>
+          <RuntimeSelect
+            value={runtimeId}
+            onValueChange={(newId) => {
+              const oldProvider = runtimes.find((r) => r.id === runtimeId)?.provider;
+              const newProvider = runtimes.find((r) => r.id === newId)?.provider;
+              setRuntimeId(newId);
+              if (oldProvider && oldProvider !== newProvider) {
+                setModel("");
+              }
+            }}
+            runtimes={runtimes}
+          />
+        </div>
 
         <div className="flex items-center gap-2 pt-2">
           <Button
@@ -202,26 +208,16 @@ export function AgentEditForm({
         </div>
 
         {agent && (
-          <div className="space-y-3 border-t border-border/40 pt-4">
-            <div className="space-y-1">
-              <Label className="text-muted-foreground">Email Handle</Label>
-              <p className="text-sm text-muted-foreground">
-                {agent.email_handle ? `${agent.email_handle}@alook.ai` : "Not configured"}
-              </p>
+          <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-3">
+            <div className="mb-2.5 flex items-center gap-1.5">
+              <LockIcon className="size-3 text-muted-foreground/60" />
+              <span className="text-xs font-medium text-muted-foreground/60">Set at creation</span>
             </div>
-            <div className="space-y-1">
-              <Label className="text-muted-foreground">Runtime</Label>
-              <p className="text-sm text-muted-foreground">
-                {(() => {
-                  const rt = runtimes.find((r) => r.id === agent.runtime_id);
-                  if (!rt) return "Unknown runtime";
-                  const machine =
-                    (typeof rt.device_info === "string" ? rt.device_info : "") ||
-                    rt.name ||
-                    "";
-                  return machine ? `${rt.provider} (${machine})` : rt.provider;
-                })()}
-              </p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">Email</span>
+              <span className="text-xs text-muted-foreground">
+                {agent.email_handle ? `${agent.email_handle}@alook.ai` : "Not configured"}
+              </span>
             </div>
           </div>
         )}

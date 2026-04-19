@@ -7,6 +7,7 @@ vi.mock("@opennextjs/cloudflare", () => ({
 const mockGetAgent = vi.fn();
 const mockDeleteAgent = vi.fn();
 const mockUpdateAgent = vi.fn();
+const mockGetAgentRuntimeForWorkspace = vi.fn();
 
 vi.mock("@alook/shared", () => ({
   createDb: vi.fn(() => ({})),
@@ -15,6 +16,9 @@ vi.mock("@alook/shared", () => ({
       getAgent: (...args: unknown[]) => mockGetAgent(...args),
       deleteAgent: (...args: unknown[]) => mockDeleteAgent(...args),
       updateAgent: (...args: unknown[]) => mockUpdateAgent(...args),
+    },
+    runtime: {
+      getAgentRuntimeForWorkspace: (...args: unknown[]) => mockGetAgentRuntimeForWorkspace(...args),
     },
   },
 }));
@@ -181,6 +185,63 @@ describe("PATCH /api/agents/[id]", () => {
       "w1",
       expect.objectContaining({ runtimeConfig: { model: "x" } }),
     );
+  });
+
+  it("PATCH with valid runtime_id (same workspace) updates agent successfully", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue({ id: "rt1", workspaceId: "w1" });
+    mockUpdateAgent.mockResolvedValue({ id: "a1", name: "Agent" });
+
+    const req = new NextRequest("http://localhost/api/agents/a1", {
+      method: "PATCH",
+      body: JSON.stringify({ runtime_id: "rt1" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await PATCH(req, ctx);
+
+    expect(res.status).toBe(200);
+    expect(mockGetAgentRuntimeForWorkspace).toHaveBeenCalledWith(
+      expect.anything(),
+      "rt1",
+      "w1",
+    );
+    expect(mockUpdateAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      "a1",
+      "w1",
+      expect.objectContaining({ runtimeId: "rt1" }),
+    );
+  });
+
+  it("PATCH with runtime_id from another workspace returns 400", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
+
+    const req = new NextRequest("http://localhost/api/agents/a1", {
+      method: "PATCH",
+      body: JSON.stringify({ runtime_id: "rt_other_ws" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await PATCH(req, ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("runtime not found in workspace");
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
+  });
+
+  it("PATCH with nonexistent runtime_id returns 400", async () => {
+    mockGetAgentRuntimeForWorkspace.mockResolvedValue(null);
+
+    const req = new NextRequest("http://localhost/api/agents/a1", {
+      method: "PATCH",
+      body: JSON.stringify({ runtime_id: "rt_nonexistent" }),
+    });
+    const ctx = { params: Promise.resolve({ id: "a1" }) };
+    const res = await PATCH(req, ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("runtime not found in workspace");
+    expect(mockUpdateAgent).not.toHaveBeenCalled();
   });
 
 });

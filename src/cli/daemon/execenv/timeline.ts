@@ -30,6 +30,7 @@ export interface ContextTimelineEntry {
   prompt: string;
   agent_responses: string[];
   errmsg: string | null;
+  provider: string | null;
 }
 
 function filenameForDate(date: Date): string {
@@ -193,6 +194,7 @@ export function createTimelineEntry(
   type: string,
   sessionId?: string,
   pid?: number,
+  provider?: string,
 ): ContextTimelineEntry {
   return {
     task_id: taskId,
@@ -204,6 +206,7 @@ export function createTimelineEntry(
     prompt,
     agent_responses: [],
     errmsg: null,
+    provider: provider ?? null,
   };
 }
 
@@ -212,6 +215,7 @@ const DEFAULT_RESUME_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
 export function findResumableSessionId(
   timelineDir: string,
   type: string,
+  provider: string,
   maxAgeMs: number = DEFAULT_RESUME_MAX_AGE_MS,
 ): string | null {
   const now = new Date();
@@ -230,6 +234,7 @@ export function findResumableSessionId(
     if (
       entry.status === "completed" &&
       entry.type === type &&
+      entry.provider === provider &&
       entry.session_id &&
       new Date(entry.datetime) >= cutoff
     ) {

@@ -58,7 +58,7 @@ export function MarketingNav({ isLoggedIn }: { isLoggedIn: boolean }) {
                 border: "1px solid var(--landing-text)",
               }}
             >
-              Dashboard
+              App
               <svg
                 width="12"
                 height="12"

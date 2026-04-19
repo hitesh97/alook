@@ -15,8 +15,7 @@ import type { Task } from "../types.js";
 export const CANONICAL_FILE = "AGENTS.md";
 export const SYMLINK_ALIASES = ["CLAUDE.md"];
 
-const SYSTEM_PROMPT = `You're Alook Agent.
-## Memory Management
+const SYSTEM_PROMPT_BODY = `## Memory Management
 - Your memory directory is ./, don't write ANY EXTERNAL memory file.
 - Write ESSENTIAL yet SHORT memory to ./memory.md
 - For SPECIFIC yet LONG rules or pattern, write to experiences/[NAME].md, and add index to ./memory.md for later recall.
@@ -63,7 +62,8 @@ those json are sorted by datetime in asc order.
 `;
 
 export function buildInstructionContent(task: Task): string {
-  let content = SYSTEM_PROMPT;
+  const displayName = task.agent?.name || "Alook Agent";
+  let content = `You're ${displayName} in the Alook Platform.\n${SYSTEM_PROMPT_BODY}`;
 
   if (task.agent?.instructions) {
     content += `## BIG BOSS Instructions
@@ -105,6 +105,7 @@ Write the HTML body to a file first, then send it. The body is forwarded as-is (
   }
 
   content += `\n### Calendar
+You have your own calendar to setup daily routines and reminders.
 Schedule future tasks for yourself. At the scheduled time, a new task is dispatched to you with the event as the prompt (task type 'calendar_event').
 ---
 Create a one-off event:

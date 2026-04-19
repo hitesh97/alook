@@ -48,7 +48,13 @@ export const PATCH = withAuth(async (req, ctx) => {
   if (typeof body.name === "string") data.name = body.name;
   if (typeof body.description === "string") data.description = body.description;
   if (typeof body.instructions === "string") data.instructions = body.instructions;
-  if (typeof body.runtime_id === "string") data.runtimeId = body.runtime_id;
+  if (typeof body.runtime_id === "string") {
+    const runtime = await queries.runtime.getAgentRuntimeForWorkspace(db, body.runtime_id, ws.workspaceId);
+    if (!runtime) {
+      return writeError("runtime not found in workspace", 400);
+    }
+    data.runtimeId = body.runtime_id;
+  }
   if (body.runtime_config !== undefined) {
     if (typeof body.runtime_config === "object" && body.runtime_config !== null && !Array.isArray(body.runtime_config)) {
       const rc = body.runtime_config as Record<string, unknown>;
