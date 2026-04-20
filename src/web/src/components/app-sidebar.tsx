@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useTheme } from "next-themes";
 import { NavUser } from "@/components/nav-user";
 
-export function AppSidebar() {
+export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -32,6 +32,7 @@ export function AppSidebar() {
 
   const handleAgentClick = (agentId: string) => {
     router.push(`${prefix}/agents/${agentId}`);
+    onNavigate?.();
   };
 
   return (
@@ -73,7 +74,7 @@ export function AppSidebar() {
         <button
           type="button"
           title="New agent"
-          onClick={() => router.push(`${prefix}/agents/new`)}
+          onClick={() => { router.push(`${prefix}/agents/new`); onNavigate?.(); }}
           className={cn(
             "flex shrink-0 items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
             "border border-dashed border-foreground/15 text-muted-foreground",
@@ -91,7 +92,7 @@ export function AppSidebar() {
         <button
           type="button"
           title="Workspaces"
-          onClick={() => router.push("/workspaces")}
+          onClick={() => { router.push("/workspaces"); onNavigate?.(); }}
           className="flex items-center justify-center size-10 rounded-xl text-muted-foreground hover:text-foreground hover:bg-accent transition-colors duration-200 cursor-pointer"
         >
           <LayoutGrid className="size-4" />
@@ -100,7 +101,7 @@ export function AppSidebar() {
         <button
           type="button"
           title="Runtimes"
-          onClick={() => router.push(`${prefix}/runtimes`)}
+          onClick={() => { router.push(`${prefix}/runtimes`); onNavigate?.(); }}
           className={cn(
             "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
             "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -113,7 +114,7 @@ export function AppSidebar() {
         <button
           type="button"
           title="Calendar"
-          onClick={() => router.push(`${prefix}/calendar`)}
+          onClick={() => { router.push(`${prefix}/calendar`); onNavigate?.(); }}
           className={cn(
             "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
             "text-muted-foreground hover:text-foreground hover:bg-accent",

@@ -4,8 +4,7 @@ import { createDb, queries } from "@alook/shared"
 import { getSession } from "@/lib/session"
 import { WorkspaceProvider } from "@/contexts/workspace-context"
 import { AgentProvider } from "@/contexts/agent-context"
-import { AppSidebar } from "@/components/app-sidebar"
-import { GradientBackground } from "@/components/gradient-background"
+import { WorkspaceShell } from "@/components/workspace-shell"
 
 export default async function WorkspaceLayout({
   children,
@@ -34,15 +33,7 @@ export default async function WorkspaceLayout({
   return (
     <WorkspaceProvider workspaceId={ws.id} slug={slug}>
       <AgentProvider workspaceId={ws.id}>
-        <div className="flex h-screen overflow-hidden relative">
-          <GradientBackground />
-          <AppSidebar />
-          <div className="flex-1 min-w-0 p-2 pl-0">
-            <main className="h-full rounded-xl bg-card/80 backdrop-blur-xl shadow-lg ring-1 ring-border/40 overflow-hidden flex flex-col">
-              {children}
-            </main>
-          </div>
-        </div>
+        <WorkspaceShell>{children}</WorkspaceShell>
       </AgentProvider>
     </WorkspaceProvider>
   )
