@@ -252,7 +252,12 @@ export function AgentChatView() {
               // Keep taskMessages so the trace stays visible under the completed assistant reply.
               const latest = await listMessages(conversationId, workspaceId);
               setMessages((prev) => mergeMessages(prev, latest));
-              scrollToBottom();
+              requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({
+                  top: scrollRef.current.scrollHeight,
+                  behavior: "instant",
+                });
+              });
             } catch {
               toast.error("Failed to refresh messages");
             }
