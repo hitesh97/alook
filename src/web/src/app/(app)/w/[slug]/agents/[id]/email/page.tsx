@@ -12,7 +12,8 @@ import { EmailCompose } from "@/components/email-compose";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Mail, Inbox, Send, Plus, Trash2, Forward, Reply, Paperclip, File as FileIcon, Copy, Check, ShieldX } from "lucide-react";
+import { ArrowLeft, Loader2, Mail, Inbox, Send, Plus, Trash2, Forward, Reply, Paperclip, File as FileIcon, Copy, Check, ShieldX } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ResizablePanels } from "@/components/ui/resizable-panels";
 import { EmailBodyFrame } from "@/components/email-body-frame";
 
@@ -39,6 +40,7 @@ export default function AgentEmailPage() {
   const { agents, subscribeWs } = useAgentContext();
 
   const agent = agents.find((a) => a.id === agentId);
+  const isMobile = useIsMobile();
 
   const [folder, setFolder] = useState<Folder>("inbox");
   const [emails, setEmails] = useState<Email[]>([]);
@@ -364,7 +366,7 @@ export default function AgentEmailPage() {
           Select an email to view
         </div>
       ) : (
-        <div className="flex flex-col h-full min-w-[400px] max-w-3xl mx-auto w-full">
+        <div className="flex flex-col h-full md:min-w-[400px] max-w-3xl mx-auto w-full">
           {/* Detail toolbar */}
           <div className="flex items-center gap-0.5 border-b border-border/40 px-4 py-1.5">
             {folder !== "sent" && (
@@ -517,16 +519,89 @@ export default function AgentEmailPage() {
     </div>
   );
 
+  const mobileContent = (() => {
+    if (composing) {
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-2 border-b border-border/50 px-3 py-2">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => { setComposing(false); setComposeInitial({}); }}
+            >
+              <ArrowLeft className="size-4" />
+            </Button>
+            <span className="text-sm font-medium">New Email</span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">{readingPaneContent}</div>
+        </div>
+      );
+    }
+    if (selectedId && selected) {
+      return (
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-2 border-b border-border/50 px-3 py-2">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => { setSelectedId(null); setBody(null); }}
+            >
+              <ArrowLeft className="size-4" />
+            </Button>
+            <span className="text-sm font-medium truncate">{selected.subject || "(no subject)"}</span>
+          </div>
+          <div className="flex-1 min-h-0 overflow-auto">{readingPaneContent}</div>
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex items-center gap-1 border-b border-border/50 px-3 py-2">
+          <div className="flex items-center gap-0.5 flex-1 min-w-0">
+            {(["inbox", "sent", "rejected"] as Folder[]).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFolder(f)}
+                className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-medium transition-colors capitalize",
+                  folder === f
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            onClick={() => { setComposeInitial({}); setComposing(true); setSelectedId(null); }}
+            disabled={!agent?.email_handle}
+          >
+            <Plus className="size-4" />
+          </Button>
+        </div>
+        <div className="flex-1 min-h-0 overflow-auto">{emailListContent}</div>
+      </div>
+    );
+  })();
+
   return (
     <>
-      <ResizablePanels
-        storageKey="email-panel-sizes"
-        panels={[
-          { defaultWidth: 180, minWidth: 120, maxWidth: 240, children: sidebarContent },
-          { defaultWidth: 300, minWidth: 200, maxWidth: 480, children: emailListContent },
-          { children: readingPaneContent, minWidth: 300 },
-        ]}
-      />
+      {isMobile ? (
+        mobileContent
+      ) : (
+        <ResizablePanels
+          storageKey="email-panel-sizes"
+          panels={[
+            { defaultWidth: 180, minWidth: 120, maxWidth: 240, children: sidebarContent },
+            { defaultWidth: 300, minWidth: 200, maxWidth: 480, children: emailListContent },
+            { children: readingPaneContent, minWidth: 300 },
+          ]}
+        />
+      )}
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog
