@@ -54,18 +54,23 @@ type StreamItem = ToolCallGroup | TextItem | ThinkingItem | StatusItem;
 /** Types that are agent-internal lifecycle events, never user-facing. */
 const HIDDEN_TYPES = new Set(["status", "log"]);
 
+function itemKey(msg: TaskMessage): string {
+  return msg.id || `seq-${msg.seq}`;
+}
+
 function groupMessages(messages: TaskMessage[]): StreamItem[] {
   const items: StreamItem[] = [];
   const toolCalls = new Map<string, ToolCallGroup>();
 
   for (const msg of messages) {
     if (HIDDEN_TYPES.has(msg.type)) continue;
+    const key = itemKey(msg);
     switch (msg.type) {
       case "tool-use": {
         const callId = msg.call_id;
         const group: ToolCallGroup = {
           kind: "tool-call",
-          id: msg.id,
+          id: key,
           tool: msg.tool,
           input: msg.input,
         };
@@ -87,7 +92,7 @@ function groupMessages(messages: TaskMessage[]): StreamItem[] {
           } else {
             items.push({
               kind: "status",
-              id: msg.id,
+              id: key,
               content: msg.output || msg.content,
               type: "tool-result",
             });
@@ -96,15 +101,15 @@ function groupMessages(messages: TaskMessage[]): StreamItem[] {
         break;
       }
       case "text":
-        items.push({ kind: "text", id: msg.id, content: msg.content });
+        items.push({ kind: "text", id: key, content: msg.content });
         break;
       case "thinking":
-        items.push({ kind: "thinking", id: msg.id, content: msg.content });
+        items.push({ kind: "thinking", id: key, content: msg.content });
         break;
       case "error":
         items.push({
           kind: "status",
-          id: msg.id,
+          id: key,
           content: msg.content || msg.output,
           type: "error",
         });
@@ -155,12 +160,12 @@ function ToolCallBlock({ item, isRunning }: { item: ToolCallGroup; isRunning: bo
       {hasDetails && (
         <div className="mt-1 mb-2 ml-5 space-y-2">
           {inputStr && (
-            <pre className="task-stream-pre overflow-x-auto rounded-md bg-muted/40 p-2.5 font-mono text-xs leading-relaxed text-muted-foreground max-h-48 overflow-y-auto">
+            <pre className="task-stream-pre overflow-x-auto rounded-md bg-muted/40 p-2.5 font-mono text-xs leading-relaxed text-muted-foreground max-h-48 max-w-full min-w-0 overflow-y-auto">
               {inputStr}
             </pre>
           )}
           {item.output && (
-            <pre className="task-stream-pre overflow-x-auto rounded-md bg-muted/30 border border-border/50 p-2.5 font-mono text-xs leading-relaxed text-foreground/70 max-h-48 overflow-y-auto">
+            <pre className="task-stream-pre overflow-x-auto rounded-md bg-muted/30 border border-border/50 p-2.5 font-mono text-xs leading-relaxed text-foreground/70 max-h-48 max-w-full min-w-0 overflow-y-auto">
               {item.output}
             </pre>
           )}
@@ -358,7 +363,7 @@ export function TaskStream({
           {textItems.map((item) => (
             <div
               key={item.id}
-              className="markdown max-w-full px-1 py-1 text-base text-foreground"
+              className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground"
             >
               <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{item.content}</Streamdown>
             </div>

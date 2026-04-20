@@ -59,6 +59,7 @@ those json are sorted by datetime in asc order.
 - When you start a new task, read the last ~10 lines of today's timeline to understand what has been asked and done recently.
   - if you don't know the current datetime, obtain the current datetime first.
 - When user ask you something you don't have in your current context, try to read the timeline jsonl files for answer (today or previous days).
+- When access other local projects, make sure you read the CLAUDE.md/AGENTS.md file under the project root dir to understand the requirements.
 `;
 
 export function buildInstructionContent(task: Task): string {
@@ -116,6 +117,7 @@ You have your own calendar to setup daily routines and reminders.
 Schedule future tasks for yourself. At the scheduled time, a new task is dispatched to you with the event as the prompt (task type 'calendar_event').
 
 !USE Calendar when you think the tasks are recurring or it should be conducted in the future.
+!When scheduling calendar events relative to a weekday (e.g. "every Monday"), always run date '+%A' first to confirm today's weekday before calculating the target date
 ---
 Keep the event title informative and concise, less than 20 words.
 Place the event details in description.

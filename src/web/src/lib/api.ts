@@ -186,6 +186,10 @@ export const sendMessage = (conversationId: string, content: string, workspaceId
     }
   );
 
+// Active task for conversation (recovery on page refresh)
+export const getActiveTask = (conversationId: string, workspaceId: string) =>
+  apiFetch<TaskApi | undefined>(`/api/conversations/${conversationId}/active-task${wsQuery(workspaceId)}`);
+
 // Machine tokens
 export const createMachineToken = (name?: string, workspaceId?: string) =>
   apiFetch<{ token: string; id: string; name: string; created_at: string }>(

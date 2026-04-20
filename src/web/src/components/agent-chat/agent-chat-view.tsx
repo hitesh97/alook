@@ -11,8 +11,10 @@ import {
   sendMessage,
   getTask,
   getTaskMessages,
+  getActiveTask,
 } from "@/lib/api";
-import type { Conversation, Message, TaskApi as Task, TaskMessage } from "@alook/shared";
+import type { Conversation, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
+import { useAgentContext } from "@/contexts/agent-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,6 +43,7 @@ export function mergeMessages(existing: Message[], incoming: Message[]): Message
 export function AgentChatView() {
   const params = useParams();
   const { workspaceId } = useWorkspace();
+  const { subscribeWs } = useAgentContext();
   const agentId = params.id as string;
 
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -61,6 +64,7 @@ export function AgentChatView() {
   const initialScrollDone = useRef(false);
   const loadingMoreRef = useRef(false);
   const isNearBottom = useRef(true);
+  const startPollingRef = useRef<(taskId: string, conversationId: string, initialSeq?: number) => void>(null!);
 
   const scrollToBottom = useCallback(() => {
     isNearBottom.current = true;
@@ -72,7 +76,7 @@ export function AgentChatView() {
     }, 50);
   }, []);
 
-  // Resolve conversation (get or create) then load messages
+  // Resolve conversation (get or create) then load messages + recover active task
   useEffect(() => {
     async function load() {
       try {
@@ -81,6 +85,20 @@ export function AgentChatView() {
         const msgs = await listMessages(conv.id, workspaceId, { limit: MESSAGE_LIMIT });
         setMessages(msgs);
         setHasMore(msgs.length >= MESSAGE_LIMIT);
+
+        // Recover active task (e.g. after page refresh)
+        const task = await getActiveTask(conv.id, workspaceId);
+        if (task) {
+          setActiveTask(task);
+          const tmsgs = await getTaskMessages(task.id, workspaceId);
+          if (tmsgs.length > 0) {
+            setTaskMessages(tmsgs);
+            lastSeqRef.current = Math.max(...tmsgs.map((m) => m.seq));
+          }
+          if (task.status !== "completed" && task.status !== "failed") {
+            startPollingRef.current(task.id, conv.id, lastSeqRef.current);
+          }
+        }
       } catch {
         toast.error("Failed to load conversation");
       } finally {
@@ -175,9 +193,9 @@ export function AgentChatView() {
   }, [loadOlderMessages, loadingMore, hasMore]);
 
   const startPolling = useCallback(
-    (taskId: string, conversationId: string) => {
+    (taskId: string, conversationId: string, initialSeq?: number) => {
       if (pollRef.current) clearInterval(pollRef.current);
-      lastSeqRef.current = 0;
+      lastSeqRef.current = initialSeq ?? 0;
       pollFailures.current = 0;
       setConnectionLost(false);
 
@@ -193,7 +211,11 @@ export function AgentChatView() {
           setActiveTask(task);
 
           if (tmsgs.length > 0) {
-            setTaskMessages((prev) => [...prev, ...tmsgs]);
+            setTaskMessages((prev) => {
+              const existingSeqs = new Set(prev.map((m) => m.seq));
+              const unique = tmsgs.filter((m) => !existingSeqs.has(m.seq));
+              return unique.length > 0 ? [...prev, ...unique] : prev;
+            });
             lastSeqRef.current = Math.max(
               ...tmsgs.map((m) => m.seq),
               lastSeqRef.current
@@ -226,16 +248,39 @@ export function AgentChatView() {
             toast.error("Lost connection to agent");
           }
         }
-      }, 1000);
+      }, 3000);
     },
     [workspaceId, scrollToBottom]
   );
+  startPollingRef.current = startPolling;
 
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
+
+  const activeTaskIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeTaskIdRef.current = activeTask?.id ?? null;
+  }, [activeTask]);
+
+  useEffect(() => {
+    return subscribeWs((msg: WsMessage) => {
+      if (msg.type === "task.messages" && msg.taskId === activeTaskIdRef.current) {
+        const incoming = msg.messages.filter((m) => m.seq > lastSeqRef.current);
+        if (incoming.length > 0) {
+          setTaskMessages((prev) => {
+            const existingSeqs = new Set(prev.map((m) => m.seq));
+            const unique = incoming.filter((m) => !existingSeqs.has(m.seq));
+            return unique.length > 0 ? [...prev, ...unique] : prev;
+          });
+          lastSeqRef.current = Math.max(...incoming.map((m) => m.seq), lastSeqRef.current);
+        }
+      }
+    });
+  }, [subscribeWs]);
 
   const handleSend = async () => {
     const content = input.trim();
@@ -332,7 +377,7 @@ export function AgentChatView() {
     <>
       {/* Messages */}
       <div
-        className="flex-1 overflow-y-auto px-5 thin-scrollbar"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-5 thin-scrollbar"
         ref={scrollRef}
         onScroll={handleScroll}
         onClick={(e) => {
@@ -381,7 +426,7 @@ export function AgentChatView() {
                   </div>
                 ) : !hasTaskStream ? (
                   <div className="flex justify-start">
-                    <div className="markdown max-w-full px-1 py-1 text-base text-foreground">
+                    <div className="markdown max-w-full min-w-0 px-1 py-1 text-base text-foreground">
                       <Streamdown controls={{ code: { copy: true, download: false }, table: { copy: true, download: false, fullscreen: true } }} linkSafety={{ enabled: false }}>{msg.content}</Streamdown>
                     </div>
                   </div>

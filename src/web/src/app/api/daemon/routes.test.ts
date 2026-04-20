@@ -521,6 +521,9 @@ describe("daemon route body validation", () => {
       vi.doMock("@/lib/api/responses", () => ({
         taskMessageToResponse: (m: any) => m,
       }));
+      vi.doMock("@/lib/broadcast", () => ({
+        broadcastToUser: vi.fn().mockResolvedValue(undefined),
+      }));
 
       return (await import("./tasks/[taskId]/messages/route")).POST;
     }
@@ -535,6 +538,94 @@ describe("daemon route body validation", () => {
       );
 
       expect(res.status).toBe(400);
+    });
+
+    it("broadcasts task.messages via WebSocket after writing to DB", async () => {
+      vi.resetModules();
+      applyBase();
+
+      const createMock = vi.fn().mockResolvedValue(undefined);
+      const broadcastMock = vi.fn().mockResolvedValue(undefined);
+
+      vi.doMock("@alook/shared", async () => {
+        const real = await vi.importActual<typeof import("@alook/shared")>(
+          "@alook/shared"
+        );
+        return {
+          ...real,
+          createDb: vi.fn(() => ({})),
+          queries: {
+            taskMessage: { createTaskMessage: createMock },
+          },
+        };
+      });
+      vi.doMock("@/lib/api/responses", () => ({
+        taskMessageToResponse: (m: any) => m,
+      }));
+      vi.doMock("@/lib/broadcast", () => ({
+        broadcastToUser: broadcastMock,
+      }));
+
+      const POST = (await import("./tasks/[taskId]/messages/route")).POST;
+      const res = await POST(
+        postReq("http://localhost/api/daemon/tasks/t1/messages", {
+          messages: [
+            { seq: 1, type: "text", content: "hello" },
+            { seq: 2, type: "tool-use", tool: "Read", content: "" },
+          ],
+        }),
+        { params: Promise.resolve({ taskId: "t1" }) }
+      );
+
+      expect(res.status).toBe(200);
+      expect(broadcastMock).toHaveBeenCalledWith(
+        daemonAuth.userId,
+        expect.objectContaining({
+          type: "task.messages",
+          taskId: "t1",
+          messages: expect.arrayContaining([
+            expect.objectContaining({ seq: 1, type: "text", content: "hello" }),
+            expect.objectContaining({ seq: 2, type: "tool-use", tool: "Read" }),
+          ]),
+        })
+      );
+    });
+
+    it("does not broadcast when messages array is empty", async () => {
+      vi.resetModules();
+      applyBase();
+
+      const broadcastMock = vi.fn().mockResolvedValue(undefined);
+
+      vi.doMock("@alook/shared", async () => {
+        const real = await vi.importActual<typeof import("@alook/shared")>(
+          "@alook/shared"
+        );
+        return {
+          ...real,
+          createDb: vi.fn(() => ({})),
+          queries: {
+            taskMessage: { createTaskMessage: vi.fn().mockResolvedValue(undefined) },
+          },
+        };
+      });
+      vi.doMock("@/lib/api/responses", () => ({
+        taskMessageToResponse: (m: any) => m,
+      }));
+      vi.doMock("@/lib/broadcast", () => ({
+        broadcastToUser: broadcastMock,
+      }));
+
+      const POST = (await import("./tasks/[taskId]/messages/route")).POST;
+      const res = await POST(
+        postReq("http://localhost/api/daemon/tasks/t1/messages", {
+          messages: [],
+        }),
+        { params: Promise.resolve({ taskId: "t1" }) }
+      );
+
+      expect(res.status).toBe(200);
+      expect(broadcastMock).not.toHaveBeenCalled();
     });
   });
 });

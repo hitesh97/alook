@@ -249,3 +249,23 @@ export async function countRunningTasks(db: Database, agentId: string, workspace
     );
   return Number(rows[0]?.value ?? 0);
 }
+
+export async function getActiveTaskByConversation(
+  db: Database,
+  conversationId: string,
+  workspaceId: string
+) {
+  const rows = await db
+    .select()
+    .from(agentTaskQueue)
+    .where(
+      and(
+        eq(agentTaskQueue.conversationId, conversationId),
+        eq(agentTaskQueue.workspaceId, workspaceId),
+        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"])
+      )
+    )
+    .orderBy(desc(agentTaskQueue.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}

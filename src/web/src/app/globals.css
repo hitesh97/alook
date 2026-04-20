@@ -809,9 +809,17 @@
   margin-bottom: 0.75em;
   border-radius: 0.5em;
   overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.85em;
   line-height: 1.6;
-  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.markdown pre code {
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: inherit;
+  line-height: inherit;
 }
 .markdown pre:not(:has(> code)) {
   padding: 0.75em 1em;
@@ -836,10 +844,13 @@
 }
 .markdown table {
   width: 100%;
+  max-width: 100%;
   margin-top: 0.75em;
   margin-bottom: 0.75em;
   border-collapse: collapse;
   font-size: 0.9em;
+  table-layout: fixed;
+  overflow-wrap: break-word;
 }
 .markdown th,
 .markdown td {
@@ -950,14 +961,20 @@
   padding: 0.5rem 0.75rem !important;
   border-radius: 0 !important;
   border: none !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
   --sdm-bg: #24292e !important;
   --sdm-fg: #e1e4e8 !important;
   background-color: #24292e !important;
   color: #e1e4e8 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
 }
-[data-streamdown="code-block-body"] pre {
+[data-streamdown="code-block-body"] pre,
+[data-streamdown="code-block-body"] pre code,
+[data-streamdown="code-block-body"] pre code span {
   background-color: #24292e !important;
   color: #e1e4e8 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
 }
 
 /* Actions wrapper: anchor inside top-right of code body */
@@ -1038,8 +1055,8 @@
 [data-streamdown="table-cell"] {
   padding: 0.4em 0.75em !important;
   text-align: left !important;
-  white-space: nowrap;
   border-bottom: 1px solid var(--border) !important;
+  overflow-wrap: break-word;
 }
 
 [data-streamdown="table-header-cell"] {
