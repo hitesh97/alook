@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS machine (
   daemon_id    TEXT NOT NULL,
   workspace_id TEXT NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
   device_info  TEXT NOT NULL DEFAULT '',
+  pending_update_version TEXT,
   last_seen_at TEXT,
   created_at   TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
