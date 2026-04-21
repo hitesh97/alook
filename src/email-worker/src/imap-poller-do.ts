@@ -107,14 +107,23 @@ export class ImapPollerDO extends DurableObject<EmailEnv> {
       const start = batch[0]!
       const end = batch[batch.length - 1]!
 
+      // peek:true to work around cf-imap bug where peek:false generates "BODYfalse" (invalid IMAP)
       const fetched = await imap.fetchEmails({
         folder: "INBOX",
         limit: [start, end],
         fetchBody: true,
-        peek: false,
+        peek: true,
       })
 
       pollLog.info("fetched emails", { count: fetched.length })
+
+      // Mark fetched emails as \Seen since we used peek:true above
+      const encoder = new TextEncoder()
+      const decoder = new TextDecoder()
+      const writer = (imap as any).writer as WritableStreamDefaultWriter
+      const reader = (imap as any).reader as ReadableStreamDefaultReader
+      await writer.write(encoder.encode(`A6 STORE ${start}:${end} +FLAGS (\\Seen)\r\n`))
+      await decoder.decode((await reader.read()).value)
 
       for (const email of fetched) {
         const r2Id = nanoid()

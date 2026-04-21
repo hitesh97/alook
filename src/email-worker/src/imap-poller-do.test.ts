@@ -21,6 +21,10 @@ const { mockConnect, mockSelectFolder, mockSearchEmails, mockFetchEmails, mockLo
   mockLogout: vi.fn().mockResolvedValue(true),
 }))
 
+const { mockStoreWriter } = vi.hoisted(() => ({
+  mockStoreWriter: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock("cf-imap", () => {
   return {
     CFImap: class {
@@ -29,6 +33,9 @@ vi.mock("cf-imap", () => {
       searchEmails = mockSearchEmails
       fetchEmails = mockFetchEmails
       logout = mockLogout
+      writer = { write: mockStoreWriter }
+      reader = { read: vi.fn().mockResolvedValue({ value: new Uint8Array() }) }
+      encoder = new TextEncoder()
     },
   }
 })
