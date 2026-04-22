@@ -179,6 +179,7 @@
 }
 
 .typewriter-blob {
+  pointer-events: none;
   position: absolute;
   bottom: var(--blob-bottom, -10%);
   left: 50%;
