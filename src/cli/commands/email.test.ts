@@ -4,9 +4,11 @@ import { join } from "path";
 import PostalMime from "postal-mime";
 import { Command } from "commander";
 
-const { postMultipartMock, postJSONMock } = vi.hoisted(() => ({
+const { postMultipartMock, postJSONMock, getJSONMock, deleteJSONMock } = vi.hoisted(() => ({
   postMultipartMock: vi.fn(),
   postJSONMock: vi.fn(),
+  getJSONMock: vi.fn(),
+  deleteJSONMock: vi.fn(),
 }));
 
 vi.mock("../lib/client.js", () => ({
@@ -16,6 +18,12 @@ vi.mock("../lib/client.js", () => ({
     }
     postJSON(...a: unknown[]) {
       return postJSONMock(...a);
+    }
+    getJSON(...a: unknown[]) {
+      return getJSONMock(...a);
+    }
+    deleteJSON(...a: unknown[]) {
+      return deleteJSONMock(...a);
     }
   },
 }));
@@ -464,5 +472,236 @@ describe("email send behavior", () => {
     expect(err.join("\n")).toContain("is empty");
     expect(postMultipartMock).not.toHaveBeenCalled();
     expect(postJSONMock).not.toHaveBeenCalled();
+  });
+});
+
+// --- Whitelist tests ---
+
+async function runWhitelist(args: string[]): Promise<{ out: string[]; err: string[]; exitCode: number | null }> {
+  const out: string[] = [];
+  const err: string[] = [];
+  let exitCode: number | null = null;
+  const logSpy = vi.spyOn(console, "log").mockImplementation((m: unknown) => {
+    out.push(String(m));
+  });
+  const errSpy = vi.spyOn(console, "error").mockImplementation((m: unknown) => {
+    err.push(String(m));
+  });
+  const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code?: number) => {
+    exitCode = code ?? 0;
+    throw new Error("__exit__");
+  }) as never);
+  try {
+    const program = new Command()
+      .name("alook")
+      .option("--server <url>", "Server URL")
+      .option("--profile <name>", "Profile name");
+    program.addCommand(emailCommand());
+    await program.parseAsync(["email", "whitelist", ...args], { from: "user" });
+  } catch (e) {
+    if (!(e instanceof Error) || e.message !== "__exit__") throw e;
+  } finally {
+    logSpy.mockRestore();
+    errSpy.mockRestore();
+    exitSpy.mockRestore();
+  }
+  return { out, err, exitCode };
+}
+
+describe("whitelist command registration", () => {
+  const cmd = emailCommand();
+  const whitelistCmd = cmd.commands.find((c) => c.name() === "whitelist")!;
+
+  it("whitelist subcommand group exists under email", () => {
+    expect(whitelistCmd).toBeDefined();
+    expect(whitelistCmd.description()).toBe("Manage email whitelist (allowed senders)");
+  });
+
+  it("list, add, delete subcommands exist under whitelist", () => {
+    const subNames = whitelistCmd.commands.map((c) => c.name());
+    expect(subNames).toContain("list");
+    expect(subNames).toContain("add");
+    expect(subNames).toContain("delete");
+  });
+
+  it("--agent_id is required on all three subcommands", () => {
+    for (const name of ["list", "add", "delete"]) {
+      const sub = whitelistCmd.commands.find((c) => c.name() === name)!;
+      const opts = (sub as unknown as { options: { long: string; mandatory?: boolean }[] }).options;
+      const mandatory = opts.filter((o) => o.mandatory).map((o) => o.long);
+      expect(mandatory).toContain("--agent_id");
+    }
+  });
+
+  it("--workspace is optional on all three subcommands", () => {
+    for (const name of ["list", "add", "delete"]) {
+      const sub = whitelistCmd.commands.find((c) => c.name() === name)!;
+      const opts = (sub as unknown as { options: { long: string; mandatory?: boolean }[] }).options;
+      const longs = opts.map((o) => o.long);
+      const mandatory = opts.filter((o) => o.mandatory).map((o) => o.long);
+      expect(longs).toContain("--workspace");
+      expect(mandatory).not.toContain("--workspace");
+    }
+  });
+
+  it("--json is optional on list only", () => {
+    const listCmd = whitelistCmd.commands.find((c) => c.name() === "list")!;
+    const listOpts = (listCmd as unknown as { options: { long: string; mandatory?: boolean }[] }).options;
+    expect(listOpts.map((o) => o.long)).toContain("--json");
+
+    for (const name of ["add", "delete"]) {
+      const sub = whitelistCmd.commands.find((c) => c.name() === name)!;
+      const opts = (sub as unknown as { options: { long: string; mandatory?: boolean }[] }).options;
+      expect(opts.map((o) => o.long)).not.toContain("--json");
+    }
+  });
+});
+
+describe("whitelist list behavior", () => {
+  beforeEach(() => {
+    getJSONMock.mockReset();
+  });
+
+  it("returns table output with entries", async () => {
+    getJSONMock.mockResolvedValueOnce([
+      { id: "wl_abc123", email: "alice@example.com", created_at: "2026-04-20T10:00:00Z" },
+      { id: "wl_def456", email: "bob@company.com", created_at: "2026-04-21T14:30:00Z" },
+    ]);
+
+    const { out, exitCode } = await runWhitelist(["list", "--agent_id", "ag_1"]);
+
+    expect(exitCode).toBeNull();
+    expect(getJSONMock).toHaveBeenCalledWith("/api/agents/ag_1/whitelist");
+    const output = out.join("\n");
+    expect(output).toContain("ID");
+    expect(output).toContain("EMAIL");
+    expect(output).toContain("CREATED AT");
+    expect(output).toContain("alice@example.com");
+    expect(output).toContain("bob@company.com");
+  });
+
+  it("returns JSON output with --json", async () => {
+    const entries = [
+      { id: "wl_abc123", email: "alice@example.com", created_at: "2026-04-20T10:00:00Z" },
+    ];
+    getJSONMock.mockResolvedValueOnce(entries);
+
+    const { out, exitCode } = await runWhitelist(["list", "--agent_id", "ag_1", "--json"]);
+
+    expect(exitCode).toBeNull();
+    const parsed = JSON.parse(out.join("\n"));
+    expect(parsed).toEqual(entries);
+  });
+
+  it("prints 'No whitelisted emails.' when empty", async () => {
+    getJSONMock.mockResolvedValueOnce([]);
+
+    const { out, exitCode } = await runWhitelist(["list", "--agent_id", "ag_1"]);
+
+    expect(exitCode).toBeNull();
+    expect(out.join("\n")).toContain("No whitelisted emails.");
+  });
+
+  it("exits 1 on API error", async () => {
+    getJSONMock.mockRejectedValueOnce(new Error("HTTP 500: Internal Server Error"));
+
+    const { err, exitCode } = await runWhitelist(["list", "--agent_id", "ag_1"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("HTTP 500");
+  });
+});
+
+describe("whitelist add behavior", () => {
+  beforeEach(() => {
+    postJSONMock.mockReset();
+  });
+
+  it("posts email and prints confirmation", async () => {
+    postJSONMock.mockResolvedValueOnce({ id: "wl_new1", email: "alice@example.com", created_at: "2026-04-22T00:00:00Z" });
+
+    const { out, exitCode } = await runWhitelist(["add", "--agent_id", "ag_1", "alice@example.com"]);
+
+    expect(exitCode).toBeNull();
+    expect(postJSONMock).toHaveBeenCalledWith("/api/agents/ag_1/whitelist", { email: "alice@example.com" });
+    expect(out.join("\n")).toContain("Added alice@example.com to whitelist (id: wl_new1)");
+  });
+
+  it("normalizes email to lowercase before sending", async () => {
+    postJSONMock.mockResolvedValueOnce({ id: "wl_new2", email: "alice@example.com", created_at: "2026-04-22T00:00:00Z" });
+
+    const { exitCode } = await runWhitelist(["add", "--agent_id", "ag_1", "Alice@Example.COM"]);
+
+    expect(exitCode).toBeNull();
+    expect(postJSONMock).toHaveBeenCalledWith("/api/agents/ag_1/whitelist", { email: "alice@example.com" });
+  });
+
+  it("exits 1 with message on 409 duplicate", async () => {
+    postJSONMock.mockRejectedValueOnce(new Error("HTTP 409: already exists"));
+
+    const { err, exitCode } = await runWhitelist(["add", "--agent_id", "ag_1", "alice@example.com"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("alice@example.com is already whitelisted");
+  });
+
+  it("exits 1 with message on 404 agent not found", async () => {
+    postJSONMock.mockRejectedValueOnce(new Error("HTTP 404: agent not found"));
+
+    const { err, exitCode } = await runWhitelist(["add", "--agent_id", "ag_999", "alice@example.com"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("404");
+  });
+
+  it("exits 1 with message on invalid email format (400 from API)", async () => {
+    postJSONMock.mockRejectedValueOnce(new Error("HTTP 400: invalid email format"));
+
+    const { err, exitCode } = await runWhitelist(["add", "--agent_id", "ag_1", "not-an-email"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("400");
+  });
+});
+
+describe("whitelist delete behavior", () => {
+  beforeEach(() => {
+    getJSONMock.mockReset();
+    deleteJSONMock.mockReset();
+  });
+
+  it("fetches list, finds entry, sends DELETE with correct whitelistId, prints confirmation", async () => {
+    getJSONMock.mockResolvedValueOnce([
+      { id: "wl_abc123", email: "alice@example.com", created_at: "2026-04-20T10:00:00Z" },
+      { id: "wl_def456", email: "bob@company.com", created_at: "2026-04-21T14:30:00Z" },
+    ]);
+    deleteJSONMock.mockResolvedValueOnce(undefined);
+
+    const { out, exitCode } = await runWhitelist(["delete", "--agent_id", "ag_1", "alice@example.com"]);
+
+    expect(exitCode).toBeNull();
+    expect(getJSONMock).toHaveBeenCalledWith("/api/agents/ag_1/whitelist");
+    expect(deleteJSONMock).toHaveBeenCalledWith("/api/agents/ag_1/whitelist/wl_abc123");
+    expect(out.join("\n")).toContain("Removed alice@example.com from whitelist");
+  });
+
+  it("exits 1 with message when email not in whitelist", async () => {
+    getJSONMock.mockResolvedValueOnce([
+      { id: "wl_abc123", email: "alice@example.com", created_at: "2026-04-20T10:00:00Z" },
+    ]);
+
+    const { err, exitCode } = await runWhitelist(["delete", "--agent_id", "ag_1", "unknown@example.com"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("unknown@example.com is not in the whitelist");
+  });
+
+  it("exits 1 on API error", async () => {
+    getJSONMock.mockRejectedValueOnce(new Error("HTTP 500: Internal Server Error"));
+
+    const { err, exitCode } = await runWhitelist(["delete", "--agent_id", "ag_1", "alice@example.com"]);
+
+    expect(exitCode).toBe(1);
+    expect(err.join("\n")).toContain("HTTP 500");
   });
 });

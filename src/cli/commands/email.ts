@@ -4,7 +4,7 @@ import { basename, join } from "path";
 import PostalMime from "postal-mime";
 import { APIClient } from "../lib/client.js";
 import { loadCLIConfigForProfile } from "../lib/config.js";
-import { printJSON } from "../lib/output.js";
+import { printJSON, printTable } from "../lib/output.js";
 import { cmdPrefix } from "../lib/env.js";
 
 interface EmailResponse {
@@ -68,8 +68,16 @@ interface SendResponse {
   to_email: string;
 }
 
+interface WhitelistEntry {
+  id: string;
+  email: string;
+  created_at: string;
+}
+
 function resolveClientOpts(command: Command, opts: { workspace?: string; agentId?: string }) {
-  const parentOpts = command.parent?.parent?.opts() || {};
+  let root = command;
+  while (root.parent) root = root.parent;
+  const parentOpts = root.opts() || {};
   const profile: string | undefined = parentOpts.profile;
   const cfg = loadCLIConfigForProfile(profile);
   const serverUrl = parentOpts.server || cfg.server_url;
@@ -360,6 +368,117 @@ export function emailCommand(): Command {
         process.exit(1);
       }
     });
+
+  const whitelistCmd = new Command("whitelist").description(
+    "Manage email whitelist (allowed senders)",
+  );
+
+  whitelistCmd
+    .command("list")
+    .description("List all whitelisted emails for an agent")
+    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--workspace <id>", "Workspace ID")
+    .option("--json", "Output as JSON")
+    .action(async (opts, command) => {
+      const { serverUrl, token, workspaceId } = resolveClientOpts(command, {
+        workspace: opts.workspace,
+        agentId: opts.agent_id,
+      });
+      const client = new APIClient(serverUrl, token, workspaceId);
+
+      try {
+        const entries = await client.getJSON<WhitelistEntry[]>(
+          `/api/agents/${opts.agent_id}/whitelist`,
+        );
+
+        if (!entries.length) {
+          console.log("No whitelisted emails.");
+          return;
+        }
+
+        if (opts.json) {
+          printJSON(entries);
+          return;
+        }
+
+        printTable(
+          ["ID", "EMAIL", "CREATED AT"],
+          entries.map((e) => [e.id, e.email, e.created_at]),
+        );
+      } catch (err) {
+        console.error(`Error: ${err instanceof Error ? err.message : err}`);
+        process.exit(1);
+      }
+    });
+
+  whitelistCmd
+    .command("add")
+    .description("Add an email to the whitelist")
+    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--workspace <id>", "Workspace ID")
+    .argument("<email>", "Email address to whitelist")
+    .action(async (email, opts, command) => {
+      const { serverUrl, token, workspaceId } = resolveClientOpts(command, {
+        workspace: opts.workspace,
+        agentId: opts.agent_id,
+      });
+      const client = new APIClient(serverUrl, token, workspaceId);
+
+      try {
+        const entry = await client.postJSON<WhitelistEntry>(
+          `/api/agents/${opts.agent_id}/whitelist`,
+          { email: email.toLowerCase() },
+        );
+        console.log(`Added ${entry.email} to whitelist (id: ${entry.id})`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("409")) {
+          console.error(`Error: ${email.toLowerCase()} is already whitelisted`);
+        } else {
+          console.error(`Error: ${msg}`);
+        }
+        process.exit(1);
+      }
+    });
+
+  whitelistCmd
+    .command("delete")
+    .description("Remove an email from the whitelist")
+    .requiredOption("--agent_id <id>", "Agent ID")
+    .option("--workspace <id>", "Workspace ID")
+    .argument("<email>", "Email address to remove")
+    .action(async (email, opts, command) => {
+      const { serverUrl, token, workspaceId } = resolveClientOpts(command, {
+        workspace: opts.workspace,
+        agentId: opts.agent_id,
+      });
+      const client = new APIClient(serverUrl, token, workspaceId);
+      const normalizedEmail = email.toLowerCase();
+
+      try {
+        const entries = await client.getJSON<WhitelistEntry[]>(
+          `/api/agents/${opts.agent_id}/whitelist`,
+        );
+        const entry = entries.find((e) => e.email === normalizedEmail);
+
+        if (!entry) {
+          console.error(`Error: ${normalizedEmail} is not in the whitelist`);
+          process.exit(1);
+        }
+
+        await client.deleteJSON(
+          `/api/agents/${opts.agent_id}/whitelist/${entry.id}`,
+        );
+        console.log(`Removed ${normalizedEmail} from whitelist`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg === "__exit__") throw err;
+        console.error(`Error: ${msg}`);
+        process.exit(1);
+      }
+    });
+
+  cmd.addCommand(whitelistCmd);
 
   return cmd;
 }
