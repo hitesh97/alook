@@ -62,17 +62,18 @@ export class TaskService {
   }
 
   async claimTasksForRuntimes(runtimeIds: string[], maxTasks: number, workspaceId: string) {
-    const tasks = await taskQueries.listPendingTasksByRuntimes(
-      this.db,
-      runtimeIds,
-      workspaceId
-    );
+    const killTasks = await taskQueries.claimKillTasks(this.db, runtimeIds, workspaceId, maxTasks);
+    let remaining = maxTasks - killTasks.length;
+
+    const tasks = remaining > 0
+      ? await taskQueries.listPendingTasksByRuntimes(this.db, runtimeIds, workspaceId)
+      : [];
     const runtimeIdSet = new Set(runtimeIds);
     const triedAgents = new Set<string>();
-    const claimed: NonNullable<Awaited<ReturnType<typeof this.claimTask>>>[] = [];
+    const claimed: NonNullable<Awaited<ReturnType<typeof this.claimTask>>>[] = [...killTasks];
 
     for (const candidate of tasks) {
-      if (claimed.length >= maxTasks) break;
+      if (remaining <= 0) break;
 
       const key = `${candidate.agentId}:${candidate.workspaceId}`;
       if (triedAgents.has(key)) continue;
@@ -81,6 +82,7 @@ export class TaskService {
       const task = await this.claimTask(candidate.agentId, candidate.workspaceId);
       if (task && runtimeIdSet.has(task.runtimeId)) {
         claimed.push(task);
+        remaining--;
       }
     }
 
@@ -148,6 +150,10 @@ export class TaskService {
       throw new Error(`cannot fail task in '${status}' status`);
     }
 
+    if (task.type === TASK_TYPES.KILL_TASK) {
+      return task;
+    }
+
     if (error) {
       await messageQueries.createMessage(this.db, {
         conversationId: task.conversationId,
@@ -160,6 +166,37 @@ export class TaskService {
     await this.reconcileAgentStatus(task.agentId, task.workspaceId);
     await this.dispatchNextBufferedMessage(task.conversationId, task.workspaceId);
     return task;
+  }
+
+  async cancelActiveTask(conversationId: string, workspaceId: string) {
+    const activeTask = await taskQueries.getActiveTaskByConversation(this.db, conversationId, workspaceId);
+    if (!activeTask) return null;
+
+    const cancelled = await taskQueries.cancelTask(this.db, activeTask.id, workspaceId);
+    if (!cancelled) return null;
+
+    if (activeTask.status === "dispatched" || activeTask.status === "running") {
+      await taskQueries.createTask(this.db, {
+        agentId: activeTask.agentId,
+        runtimeId: activeTask.runtimeId,
+        workspaceId,
+        conversationId,
+        prompt: "",
+        type: TASK_TYPES.KILL_TASK,
+        context: { target_task_id: activeTask.id },
+      });
+    }
+
+    await messageQueries.createMessage(this.db, {
+      conversationId,
+      role: "assistant",
+      content: "Task cancelled by user",
+      taskId: activeTask.id,
+    });
+
+    await this.reconcileAgentStatus(activeTask.agentId, workspaceId);
+    await this.dispatchNextBufferedMessage(conversationId, workspaceId);
+    return cancelled;
   }
 
   async reconcileAgentStatus(agentId: string, workspaceId: string) {

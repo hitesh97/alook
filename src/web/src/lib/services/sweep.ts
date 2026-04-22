@@ -10,6 +10,9 @@ export async function sweepStaleState(db: Database, workspaceId: string) {
   // 1. Fail tasks stuck in "dispatched" for >20s (daemon crashed between claim and start)
   const stale = await queries.task.failStaleDispatchedTasks(db, workspaceId);
 
+  // 1b. Fail kill_tasks stuck for >30s (daemon offline or crashed after claim)
+  await queries.task.failStaleKillTasks(db, workspaceId);
+
   // 2. Reconcile agent status for any agents affected by step 1
   if (stale.length > 0) {
     const taskService = new TaskService(db);

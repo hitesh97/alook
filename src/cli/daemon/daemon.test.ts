@@ -73,6 +73,11 @@ vi.mock("./update-handler.js", () => ({
   clearUpdateMarker: vi.fn(),
 }));
 
+const mockFindRunningPidByTaskId = vi.fn();
+vi.mock("./execenv/timeline.js", () => ({
+  findRunningPidByTaskId: (...args: any[]) => mockFindRunningPidByTaskId(...args),
+}));
+
 // Track spawned children
 interface MockChild extends EventEmitter {
   pid: number;
@@ -1275,5 +1280,130 @@ describe("daemon restart via update", () => {
     await startDaemon();
 
     expect(clearUpdateMarker).not.toHaveBeenCalled();
+  });
+});
+
+describe("daemon kill_task handling", () => {
+  beforeEach(() => {
+    signalHandlers.clear();
+    intervalTimers.length = 0;
+    clearedTimers.length = 0;
+    spawnedChildren.length = 0;
+    nextPid = 50000;
+    vi.clearAllMocks();
+    mockProcessExit.mockImplementation((() => {}) as any);
+    mockOpenSync.mockReturnValue(42);
+  });
+
+  afterEach(() => {
+    for (const t of intervalTimers) realClearInterval(t);
+  });
+
+  function makeKillTask(targetTaskId: string) {
+    return {
+      id: "kt1",
+      agent_id: "a1",
+      runtime_id: "rt1",
+      conversation_id: "c1",
+      workspace_id: "ws1",
+      prompt: "",
+      status: "dispatched",
+      priority: 0,
+      dispatched_at: null,
+      started_at: null,
+      completed_at: null,
+      created_at: "2026-01-01T00:00:00Z",
+      type: "kill_task",
+      result: null,
+      error: null,
+      agent: null,
+      context: { target_task_id: targetTaskId },
+    };
+  }
+
+  function setupKillTaskClaim(targetTaskId: string) {
+    let claimed = false;
+    mockClientInstance.poll.mockImplementation(async () => {
+      if (!claimed) {
+        claimed = true;
+        return { tasks: [makeKillTask(targetTaskId)], evicted: false };
+      }
+      return { tasks: [], evicted: false };
+    });
+  }
+
+  it("sends SIGTERM when target PID is found in timeline", async () => {
+    setupKillTaskClaim("target_t1");
+    mockFindRunningPidByTaskId.mockReturnValue(99999);
+    const mockKill = vi.spyOn(process, "kill").mockImplementation((() => {}) as any);
+
+    vi.mocked(loadCLIConfigForProfile).mockReturnValue({
+      server_url: "",
+      watched_workspaces: [{ id: "ws1", name: "Test WS", token: "al_test_token" }],
+    });
+    mockClientInstance.register.mockResolvedValue({ runtimes: [{ id: "rt1" }] });
+
+    await startDaemon();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockKill).toHaveBeenCalledWith(99999, "SIGTERM");
+    expect(mockClientInstance.failTask).toHaveBeenCalledWith("al_test_token", "kt1", "killed");
+    expect(spawn).not.toHaveBeenCalled();
+
+    mockKill.mockRestore();
+  });
+
+  it("reports 'target not found' when PID not in timeline", async () => {
+    setupKillTaskClaim("target_t1");
+    mockFindRunningPidByTaskId.mockReturnValue(null);
+
+    vi.mocked(loadCLIConfigForProfile).mockReturnValue({
+      server_url: "",
+      watched_workspaces: [{ id: "ws1", name: "Test WS", token: "al_test_token" }],
+    });
+    mockClientInstance.register.mockResolvedValue({ runtimes: [{ id: "rt1" }] });
+
+    await startDaemon();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockClientInstance.failTask).toHaveBeenCalledWith("al_test_token", "kt1", "target not found in timeline");
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("handles ESRCH when target process already exited", async () => {
+    setupKillTaskClaim("target_t1");
+    mockFindRunningPidByTaskId.mockReturnValue(12345);
+    const esrchError = Object.assign(new Error("kill ESRCH"), { code: "ESRCH" });
+    const mockKill = vi.spyOn(process, "kill").mockImplementation(() => { throw esrchError; });
+
+    vi.mocked(loadCLIConfigForProfile).mockReturnValue({
+      server_url: "",
+      watched_workspaces: [{ id: "ws1", name: "Test WS", token: "al_test_token" }],
+    });
+    mockClientInstance.register.mockResolvedValue({ runtimes: [{ id: "rt1" }] });
+
+    await startDaemon();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockClientInstance.failTask).toHaveBeenCalledWith("al_test_token", "kt1", "target process already exited");
+    expect(spawn).not.toHaveBeenCalled();
+
+    mockKill.mockRestore();
+  });
+
+  it("does not call startTask for kill_tasks", async () => {
+    setupKillTaskClaim("target_t1");
+    mockFindRunningPidByTaskId.mockReturnValue(null);
+
+    vi.mocked(loadCLIConfigForProfile).mockReturnValue({
+      server_url: "",
+      watched_workspaces: [{ id: "ws1", name: "Test WS", token: "al_test_token" }],
+    });
+    mockClientInstance.register.mockResolvedValue({ runtimes: [{ id: "rt1" }] });
+
+    await startDaemon();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockClientInstance.startTask).not.toHaveBeenCalled();
   });
 });

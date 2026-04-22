@@ -7,6 +7,7 @@ vi.mock("@alook/shared", () => ({
     USER_DM_MESSAGE: "user_dm_message",
     EMAIL_NOTIFICATION: "email_notification",
     CALENDAR_EVENT: "calendar_event",
+    KILL_TASK: "kill_task",
   },
   buildContextKey: (...a: unknown[]) => `ctx:${(a[1] as Record<string, unknown>)?.conversationId}`,
   queries: {
@@ -19,6 +20,9 @@ vi.mock("@alook/shared", () => ({
       getTask: vi.fn(),
       countRunningTasks: vi.fn(),
       listPendingTasksByRuntimes: vi.fn(),
+      claimKillTasks: vi.fn().mockResolvedValue([]),
+      getActiveTaskByConversation: vi.fn(),
+      cancelTask: vi.fn(),
     },
     agent: {
       getAgent: vi.fn(),
@@ -72,6 +76,8 @@ describe("TaskService", () => {
     vi.clearAllMocks();
     // Default: no buffered messages to dispatch
     messageQ.activateNextBufferedMessage.mockResolvedValue(null);
+    // Default: no kill tasks to claim
+    taskQ.claimKillTasks.mockResolvedValue([]);
   });
 
   // ── enqueueTask ──────────────────────────────────────────────────
@@ -631,6 +637,131 @@ describe("TaskService", () => {
       await service.failTask("t1", "w1", "err");
 
       expect(messageQ.activateNextBufferedMessage).toHaveBeenCalledWith({}, "c1");
+    });
+  });
+
+  // ── failTask skips side-effects for kill_task ──────────────────
+
+  describe("failTask kill_task guard", () => {
+    it("skips message creation and reconciliation for kill_task type", async () => {
+      const task = {
+        id: "kt1",
+        agentId: "a1",
+        workspaceId: "w1",
+        conversationId: "c1",
+        status: "failed",
+        type: "kill_task",
+      };
+      taskQ.failTask.mockResolvedValue(task);
+
+      const result = await service.failTask("kt1", "w1", "killed");
+
+      expect(result).toEqual(task);
+      expect(messageQ.createMessage).not.toHaveBeenCalled();
+      expect(taskQ.countRunningTasks).not.toHaveBeenCalled();
+      expect(agentQ.updateAgentStatus).not.toHaveBeenCalled();
+      expect(messageQ.activateNextBufferedMessage).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── cancelActiveTask ─────────────────────────────────────────
+
+  describe("cancelActiveTask", () => {
+    it("returns null when no active task", async () => {
+      taskQ.getActiveTaskByConversation.mockResolvedValue(null);
+
+      const result = await service.cancelActiveTask("c1", "w1");
+      expect(result).toBeNull();
+    });
+
+    it("cancels queued task without creating kill_task", async () => {
+      const task = { id: "t1", status: "queued", agentId: "a1", runtimeId: "r1", conversationId: "c1" };
+      taskQ.getActiveTaskByConversation.mockResolvedValue(task);
+      taskQ.cancelTask.mockResolvedValue({ ...task, status: "cancelled" });
+      taskQ.countRunningTasks.mockResolvedValue(0);
+
+      const result = await service.cancelActiveTask("c1", "w1");
+
+      expect(result!.status).toBe("cancelled");
+      expect(taskQ.createTask).not.toHaveBeenCalled();
+      expect(messageQ.createMessage).toHaveBeenCalledWith({}, expect.objectContaining({
+        content: "Task cancelled by user",
+        taskId: "t1",
+      }));
+    });
+
+    it("creates kill_task for running task", async () => {
+      const task = { id: "t1", status: "running", agentId: "a1", runtimeId: "r1", conversationId: "c1" };
+      taskQ.getActiveTaskByConversation.mockResolvedValue(task);
+      taskQ.cancelTask.mockResolvedValue({ ...task, status: "cancelled" });
+      taskQ.countRunningTasks.mockResolvedValue(0);
+
+      await service.cancelActiveTask("c1", "w1");
+
+      expect(taskQ.createTask).toHaveBeenCalledWith({}, expect.objectContaining({
+        type: "kill_task",
+        agentId: "a1",
+        runtimeId: "r1",
+        conversationId: "c1",
+        context: { target_task_id: "t1" },
+      }));
+    });
+
+    it("creates kill_task for dispatched task", async () => {
+      const task = { id: "t1", status: "dispatched", agentId: "a1", runtimeId: "r1", conversationId: "c1" };
+      taskQ.getActiveTaskByConversation.mockResolvedValue(task);
+      taskQ.cancelTask.mockResolvedValue({ ...task, status: "cancelled" });
+      taskQ.countRunningTasks.mockResolvedValue(0);
+
+      await service.cancelActiveTask("c1", "w1");
+
+      expect(taskQ.createTask).toHaveBeenCalledWith({}, expect.objectContaining({
+        type: "kill_task",
+        context: { target_task_id: "t1" },
+      }));
+    });
+
+    it("dispatches next buffered message after cancel", async () => {
+      const task = { id: "t1", status: "running", agentId: "a1", runtimeId: "r1", conversationId: "c1" };
+      taskQ.getActiveTaskByConversation.mockResolvedValue(task);
+      taskQ.cancelTask.mockResolvedValue({ ...task, status: "cancelled" });
+      taskQ.countRunningTasks.mockResolvedValue(0);
+
+      await service.cancelActiveTask("c1", "w1");
+
+      expect(messageQ.activateNextBufferedMessage).toHaveBeenCalledWith({}, "c1");
+    });
+  });
+
+  // ── claimTasksForRuntimes with kill_tasks ───────────────────
+
+  describe("claimTasksForRuntimes with kill_tasks", () => {
+    it("claims kill_tasks before normal tasks", async () => {
+      const killTask = { id: "kt1", agentId: "a1", runtimeId: "r1", workspaceId: "w1", type: "kill_task" };
+      taskQ.claimKillTasks.mockResolvedValue([killTask]);
+      taskQ.listPendingTasksByRuntimes.mockResolvedValue([]);
+
+      const result = await service.claimTasksForRuntimes(["r1"], 2, "w1");
+
+      expect(result).toEqual([killTask]);
+      expect(taskQ.claimKillTasks).toHaveBeenCalledWith({}, ["r1"], "w1", 2);
+    });
+
+    it("subtracts kill_tasks from remaining capacity", async () => {
+      const killTask = { id: "kt1", agentId: "a1", runtimeId: "r1", workspaceId: "w1", type: "kill_task" };
+      taskQ.claimKillTasks.mockResolvedValue([killTask]);
+      taskQ.listPendingTasksByRuntimes.mockResolvedValue([
+        { agentId: "a2", workspaceId: "w1", id: "t2", runtimeId: "r1" },
+      ]);
+      agentQ.getAgent.mockResolvedValue({ id: "a2", maxConcurrentTasks: 5 });
+      taskQ.countRunningTasks.mockResolvedValue(0);
+      taskQ.claimTask.mockResolvedValue({ id: "t2", agentId: "a2", runtimeId: "r1" });
+
+      const result = await service.claimTasksForRuntimes(["r1"], 1, "w1");
+
+      // Only the kill_task — maxTasks=1 is fully consumed
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe("kt1");
     });
   });
 });

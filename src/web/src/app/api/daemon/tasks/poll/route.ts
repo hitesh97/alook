@@ -79,6 +79,11 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   // Per-request cache: avoids duplicate DB reads when multiple agents share the same owner
   const memberCache = new Map<string, { globalInstruction: string } | null>();
   for (const task of claimed) {
+    if (task.type === "kill_task") {
+      tasks.push({ ...taskToResponse(task), agent: null });
+      continue;
+    }
+
     const agent = await queries.agent.getAgent(db, task.agentId, task.workspaceId);
     let emailAddresses: string[] = [];
     if (agent) {

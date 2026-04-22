@@ -30,6 +30,7 @@ export const TASK_TYPES = {
   USER_DM_MESSAGE: "user_dm_message",
   EMAIL_NOTIFICATION: "email_notification",
   CALENDAR_EVENT: "calendar_event",
+  KILL_TASK: "kill_task",
 } as const;
 
 export type TaskType = (typeof TASK_TYPES)[keyof typeof TASK_TYPES];

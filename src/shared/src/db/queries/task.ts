@@ -1,4 +1,4 @@
-import { eq, and, desc, asc, inArray, notInArray, count, lt } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, notInArray, ne, count, lt } from "drizzle-orm";
 import { agentTaskQueue } from "../schema";
 import type { Database } from "../index";
 import { ClaimedTaskRowSchema } from "../../schemas";
@@ -64,7 +64,8 @@ export async function claimTask(db: Database, agentId: string, workspaceId: stri
       and(
         eq(agentTaskQueue.agentId, agentId),
         eq(agentTaskQueue.workspaceId, workspaceId),
-        inArray(agentTaskQueue.status, ["dispatched", "running"])
+        inArray(agentTaskQueue.status, ["dispatched", "running"]),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
       )
     );
 
@@ -173,7 +174,8 @@ export async function listPendingTasksByRuntimes(
       and(
         eq(agentTaskQueue.workspaceId, workspaceId),
         inArray(agentTaskQueue.runtimeId, runtimeIds),
-        inArray(agentTaskQueue.status, ["queued", "dispatched"])
+        inArray(agentTaskQueue.status, ["queued", "dispatched"]),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
       )
     )
     .orderBy(desc(agentTaskQueue.priority), asc(agentTaskQueue.createdAt));
@@ -189,20 +191,22 @@ export async function hasPendingTaskForConversation(
     .where(
       and(
         eq(agentTaskQueue.conversationId, conversationId),
-        inArray(agentTaskQueue.status, ["queued", "dispatched"])
+        inArray(agentTaskQueue.status, ["queued", "dispatched"]),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
       )
     )
     .limit(1);
   return rows.length > 0;
 }
 
-export async function cancelTask(db: Database, id: string) {
+export async function cancelTask(db: Database, id: string, workspaceId: string) {
   const rows = await db
     .update(agentTaskQueue)
     .set({ status: "cancelled", completedAt: new Date().toISOString() })
     .where(
       and(
         eq(agentTaskQueue.id, id),
+        eq(agentTaskQueue.workspaceId, workspaceId),
         inArray(agentTaskQueue.status, ["queued", "dispatched", "running"])
       )
     )
@@ -225,6 +229,7 @@ export async function failStaleDispatchedTasks(db: Database, workspaceId: string
       and(
         eq(agentTaskQueue.workspaceId, workspaceId),
         eq(agentTaskQueue.status, "dispatched"),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK),
         lt(agentTaskQueue.dispatchedAt, threshold)
       )
     )
@@ -251,7 +256,8 @@ export async function countRunningTasks(db: Database, agentId: string, workspace
       and(
         eq(agentTaskQueue.agentId, agentId),
         eq(agentTaskQueue.workspaceId, workspaceId),
-        inArray(agentTaskQueue.status, ["dispatched", "running"])
+        inArray(agentTaskQueue.status, ["dispatched", "running"]),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
       )
     );
   return Number(rows[0]?.value ?? 0);
@@ -270,7 +276,8 @@ export async function listActiveTaskCountsByWorkspace(
     .where(
       and(
         eq(agentTaskQueue.workspaceId, workspaceId),
-        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"])
+        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"]),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
       )
     )
     .groupBy(agentTaskQueue.agentId);
@@ -293,7 +300,8 @@ export async function listActiveTasksByAgent(
       and(
         eq(agentTaskQueue.agentId, agentId),
         eq(agentTaskQueue.workspaceId, workspaceId),
-        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"])
+        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"]),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
       )
     )
     .orderBy(desc(agentTaskQueue.priority), asc(agentTaskQueue.createdAt))
@@ -312,10 +320,74 @@ export async function getActiveTaskByConversation(
       and(
         eq(agentTaskQueue.conversationId, conversationId),
         eq(agentTaskQueue.workspaceId, workspaceId),
-        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"])
+        inArray(agentTaskQueue.status, ["queued", "dispatched", "running"]),
+        ne(agentTaskQueue.type, TASK_TYPES.KILL_TASK)
       )
     )
     .orderBy(desc(agentTaskQueue.createdAt))
     .limit(1);
   return rows[0] ?? null;
+}
+
+export async function claimKillTasks(
+  db: Database,
+  runtimeIds: string[],
+  workspaceId: string,
+  limit: number
+) {
+  if (runtimeIds.length === 0 || limit <= 0) return [];
+
+  const candidates = await db
+    .select({ id: agentTaskQueue.id })
+    .from(agentTaskQueue)
+    .where(
+      and(
+        eq(agentTaskQueue.workspaceId, workspaceId),
+        eq(agentTaskQueue.type, TASK_TYPES.KILL_TASK),
+        eq(agentTaskQueue.status, "queued"),
+        inArray(agentTaskQueue.runtimeId, runtimeIds)
+      )
+    )
+    .orderBy(asc(agentTaskQueue.createdAt))
+    .limit(limit);
+
+  const claimed = [];
+  for (const candidate of candidates) {
+    const rows = await db
+      .update(agentTaskQueue)
+      .set({ status: "dispatched", dispatchedAt: new Date().toISOString() })
+      .where(
+        and(
+          eq(agentTaskQueue.id, candidate.id),
+          eq(agentTaskQueue.status, "queued")
+        )
+      )
+      .returning();
+    const row = rows[0];
+    if (row) claimed.push(ClaimedTaskRowSchema.parse(row));
+  }
+  return claimed;
+}
+
+const KILL_TASK_STALE_SECONDS = 30;
+
+export async function failStaleKillTasks(db: Database, workspaceId: string) {
+  const threshold = new Date(Date.now() - KILL_TASK_STALE_SECONDS * 1000).toISOString();
+  const rows = await db
+    .update(agentTaskQueue)
+    .set({
+      status: "failed",
+      completedAt: new Date().toISOString(),
+      error: "kill_task timed out (daemon likely offline)",
+    })
+    .where(
+      and(
+        eq(agentTaskQueue.workspaceId, workspaceId),
+        eq(agentTaskQueue.type, TASK_TYPES.KILL_TASK),
+        inArray(agentTaskQueue.status, ["queued", "dispatched"]),
+        lt(agentTaskQueue.createdAt, threshold)
+      )
+    )
+    .returning({ id: agentTaskQueue.id });
+  return rows;
 }

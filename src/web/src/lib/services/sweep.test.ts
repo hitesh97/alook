@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockFailStaleDispatchedTasks = vi.fn();
+const mockFailStaleKillTasks = vi.fn();
 const mockCountRunningTasks = vi.fn();
 const mockUpdateAgentStatus = vi.fn();
 const mockActivateNextBufferedMessage = vi.fn();
@@ -14,6 +15,7 @@ vi.mock("@alook/shared", () => ({
   queries: {
     task: {
       failStaleDispatchedTasks: (...args: unknown[]) => mockFailStaleDispatchedTasks(...args),
+      failStaleKillTasks: (...args: unknown[]) => mockFailStaleKillTasks(...args),
       countRunningTasks: (...args: unknown[]) => mockCountRunningTasks(...args),
       createTask: (...args: unknown[]) => mockCreateTask(...args),
     },
@@ -29,7 +31,7 @@ vi.mock("@alook/shared", () => ({
       getConversation: (...args: unknown[]) => mockGetConversation(...args),
     },
   },
-  TASK_TYPES: { USER_DM_MESSAGE: "user_dm_message" },
+  TASK_TYPES: { USER_DM_MESSAGE: "user_dm_message", KILL_TASK: "kill_task" },
   buildContextKey: () => "ctx:test",
 }));
 
@@ -53,6 +55,7 @@ const db = {} as any;
 describe("sweepStaleState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFailStaleKillTasks.mockResolvedValue([]);
     mockActivateNextBufferedMessage.mockResolvedValue(null);
   });
 
@@ -128,5 +131,13 @@ describe("sweepStaleState", () => {
     await sweepStaleState(db, "w1");
 
     expect(mockActivateNextBufferedMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls failStaleKillTasks with workspace", async () => {
+    mockFailStaleDispatchedTasks.mockResolvedValue([]);
+
+    await sweepStaleState(db, "w1");
+
+    expect(mockFailStaleKillTasks).toHaveBeenCalledWith(db, "w1");
   });
 });

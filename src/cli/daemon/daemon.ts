@@ -8,6 +8,8 @@ import { log } from "../lib/logger.js";
 import { cmdPrefix } from "../lib/env.js";
 import { acquireDaemonPid, releaseDaemonPid } from "./pidfile.js";
 import { handleCliUpdate, isUpdating, readUpdateMarker, clearUpdateMarker } from "./update-handler.js";
+import { findRunningPidByTaskId } from "./execenv/timeline.js";
+import { TASK_TYPES } from "@alook/shared";
 import { existsSync, mkdirSync, openSync, closeSync, readdirSync, statSync, unlinkSync } from "fs";
 import { execSync, spawn, type ChildProcess } from "child_process";
 import { fileURLToPath } from "url";
@@ -410,6 +412,39 @@ async function handleTask(
   activeTasks: Set<string>,
 ): Promise<void> {
   log.info(`Task ${task.id} claimed agent=${task.agentId}`);
+
+  if (task.type === TASK_TYPES.KILL_TASK) {
+    const targetTaskId = (task.context as Record<string, unknown>)?.target_task_id as string | undefined;
+    if (!targetTaskId) {
+      await client.failTask(token, task.id, "missing target_task_id in context");
+      activeTasks.delete(task.id);
+      return;
+    }
+
+    const timelineDir = join(config.workspacesRoot, task.workspaceId, task.agentId, "workdir", ".context_timeline");
+    const pid = findRunningPidByTaskId(timelineDir, targetTaskId);
+
+    if (pid != null) {
+      try {
+        process.kill(pid, "SIGTERM");
+        await client.failTask(token, task.id, "killed");
+        log.info(`Kill task ${task.id}: sent SIGTERM to pid=${pid} for target=${targetTaskId}`);
+      } catch (e: unknown) {
+        if ((e as NodeJS.ErrnoException)?.code === "ESRCH") {
+          await client.failTask(token, task.id, "target process already exited");
+          log.info(`Kill task ${task.id}: target pid=${pid} already exited`);
+        } else {
+          await client.failTask(token, task.id, `kill failed: ${e}`);
+        }
+      }
+    } else {
+      await client.failTask(token, task.id, "target not found in timeline");
+      log.info(`Kill task ${task.id}: target ${targetTaskId} not found in timeline`);
+    }
+
+    activeTasks.delete(task.id);
+    return;
+  }
 
   try {
     await client.startTask(token, task.id);

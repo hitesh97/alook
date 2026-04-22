@@ -334,6 +334,11 @@ export const deleteAllBufferedMessages = (conversationId: string, workspaceId: s
 export const getActiveTask = (conversationId: string, workspaceId: string) =>
   apiFetch<TaskApi | undefined>(`/api/conversations/${conversationId}/active-task${wsQuery(workspaceId)}`);
 
+export const cancelActiveTask = (conversationId: string, workspaceId: string) =>
+  apiFetch<TaskApi>(`/api/conversations/${conversationId}/active-task${wsQuery(workspaceId)}`, {
+    method: "DELETE",
+  });
+
 // Machine tokens
 export const createMachineToken = (name?: string, workspaceId?: string) =>
   apiFetch<{ token: string; id: string; name: string; created_at: string }>(

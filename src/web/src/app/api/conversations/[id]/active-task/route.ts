@@ -5,6 +5,8 @@ import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON, writeError } from "@/lib/middleware/helpers";
 import { taskToResponse } from "@/lib/api/responses";
+import { TaskService } from "@/lib/services/task";
+import { broadcastToUser } from "@/lib/broadcast";
 
 export const GET = withAuth(async (req, ctx) => {
   const ws = await withWorkspaceMember(req, ctx);
@@ -29,4 +31,36 @@ export const GET = withAuth(async (req, ctx) => {
   }
 
   return writeJSON(taskToResponse(task));
+});
+
+export const DELETE = withAuth(async (req, ctx) => {
+  const ws = await withWorkspaceMember(req, ctx);
+  if (ws instanceof Response) return ws;
+
+  const { env } = getCloudflareContext()
+  const db = getDb((env as Env).DB)
+
+  const id = ctx.params?.id;
+  if (!id) {
+    return writeError("conversation id is required", 400);
+  }
+
+  const conversation = await queries.conversation.getConversation(db, id, ws.workspaceId);
+  if (!conversation) {
+    return writeError("conversation not found", 404);
+  }
+
+  const taskService = new TaskService(db);
+  const cancelled = await taskService.cancelActiveTask(id, ws.workspaceId);
+  if (!cancelled) {
+    return writeError("no active task to cancel", 404);
+  }
+
+  broadcastToUser(ctx.userId, {
+    type: "task.updated",
+    taskId: cancelled.id,
+    status: "cancelled",
+  }).catch(() => {});
+
+  return writeJSON(taskToResponse(cancelled));
 });

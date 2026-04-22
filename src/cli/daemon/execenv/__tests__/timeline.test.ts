@@ -15,6 +15,7 @@ import {
   createTimelineEntry,
   findResumableSessionId,
   findResumableSessionByContextKey,
+  findRunningPidByTaskId,
   _todayFilename,
   _localISOString,
   _filenameForDate,
@@ -514,6 +515,77 @@ describe("timeline", () => {
     it("createTimelineEntry sets context_key to null when not provided", () => {
       const entry = createTimelineEntry("t_c2", "test", "user_dm_message");
       expect(entry.context_key).toBeNull();
+    });
+  });
+
+  describe("findRunningPidByTaskId", () => {
+    function writeEntry(filename: string, entry: ContextTimelineEntry) {
+      const filePath = join(dir, filename);
+      let existing = "";
+      try { existing = readFileSync(filePath, "utf-8"); } catch { /* new file */ }
+      writeFileSync(filePath, existing + JSON.stringify(entry) + "\n");
+    }
+
+    function makeEntry(overrides: Partial<ContextTimelineEntry>): ContextTimelineEntry {
+      return {
+        task_id: "t_1",
+        context_key: null,
+        session_id: null,
+        pid: null,
+        status: "running",
+        datetime: new Date().toISOString(),
+        type: "user_dm_message",
+        prompt: "test",
+        agent_responses: [],
+        errmsg: null,
+        provider: "claude",
+        detailed_log: null,
+        ...overrides,
+      };
+    }
+
+    it("returns PID for running task", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_running",
+        status: "running",
+        pid: 12345,
+      }));
+
+      expect(findRunningPidByTaskId(dir, "t_running")).toBe(12345);
+    });
+
+    it("returns null for completed task", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_done",
+        status: "completed",
+        pid: null,
+      }));
+
+      expect(findRunningPidByTaskId(dir, "t_done")).toBeNull();
+    });
+
+    it("returns null when task not in timeline", () => {
+      expect(findRunningPidByTaskId(dir, "t_nonexistent")).toBeNull();
+    });
+
+    it("returns null for running task with null pid", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_nopid",
+        status: "running",
+        pid: null,
+      }));
+
+      expect(findRunningPidByTaskId(dir, "t_nopid")).toBeNull();
+    });
+
+    it("returns null for killed task even with pid", () => {
+      writeEntry(_todayFilename(), makeEntry({
+        task_id: "t_killed",
+        status: "killed",
+        pid: 99999,
+      }));
+
+      expect(findRunningPidByTaskId(dir, "t_killed")).toBeNull();
     });
   });
 

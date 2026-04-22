@@ -17,13 +17,14 @@ import {
   listBufferedMessages,
   createBufferedMessage,
   deleteBufferedMessage,
+  cancelActiveTask,
 } from "@/lib/api";
 import type { Artifact, Conversation, Message, TaskApi as Task, TaskMessage, WsMessage } from "@alook/shared";
 import { useAgentContext } from "@/contexts/agent-context";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowUp, Box, FileText, Loader2, Mic, Paperclip, RotateCcw, X } from "lucide-react";
+import { ArrowUp, Box, FileText, Loader2, Mic, Paperclip, RotateCcw, Square, X } from "lucide-react";
 import { useSpeechRecognition } from "@/hooks/use-speech-recognition";
 import { ArtifactSheet, formatSize } from "@/components/agent-chat/artifact-sheet";
 import { isPreviewable, getArtifactUrl } from "@/components/artifact-content-renderer";
@@ -164,6 +165,7 @@ export function AgentChatView() {
     return localStorage.getItem(`chat-draft:${agentId}`) ?? "";
   });
   const [sending, setSending] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
   const [taskMessages, setTaskMessages] = useState<TaskMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -249,7 +251,7 @@ export function AgentChatView() {
             setTaskMessages(data.task_messages);
             lastSeqRef.current = Math.max(...data.task_messages.map((m) => m.seq));
           }
-          if (data.active_task.status !== "completed" && data.active_task.status !== "failed") {
+          if (!["completed", "failed", "cancelled"].includes(data.active_task.status)) {
             startPollingRef.current(data.active_task.id, data.conversation.id, lastSeqRef.current);
           }
         }
@@ -382,7 +384,7 @@ export function AgentChatView() {
             );
           }
 
-          if (task.status === "completed" || task.status === "failed") {
+          if (task.status === "completed" || task.status === "failed" || task.status === "cancelled") {
             if (isStale) {
               // Stale poll — still merge messages but don't touch activeTask or polling
               listMessages(conversationId, workspaceId)
@@ -562,6 +564,26 @@ export function AgentChatView() {
     }
   }, []);
 
+  const handleStop = async () => {
+    if (!conversation || cancelling) return;
+    setCancelling(true);
+    try {
+      const cancelled = await cancelActiveTask(conversation.id, workspaceId);
+      if (cancelled) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        const latest = await listMessages(conversation.id, workspaceId);
+        setMessages((prev) => mergeMessages(prev, latest));
+        setActiveTask(cancelled as Task);
+        setTaskMessages([]);
+      }
+    } catch {
+      toast.error("Failed to cancel task");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const handleSend = async () => {
     const content = input.trim();
     if ((!content && pendingFiles.length === 0) || sending || !conversation) return;
@@ -575,7 +597,7 @@ export function AgentChatView() {
     setPendingFiles([]);
     setSending(true);
 
-    const taskActive = !!activeTask && activeTask.status !== "completed" && activeTask.status !== "failed";
+    const taskActive = !!activeTask && !["completed", "failed", "cancelled"].includes(activeTask.status);
 
     if (taskActive) {
       // Buffer mode: queue message for later dispatch
@@ -723,7 +745,7 @@ export function AgentChatView() {
     }
   };
 
-  const isTaskActive = !!activeTask && activeTask.status !== "completed" && activeTask.status !== "failed";
+  const isTaskActive = !!activeTask && !["completed", "failed", "cancelled"].includes(activeTask.status);
 
   if (loading) {
     return (
@@ -851,7 +873,7 @@ export function AgentChatView() {
           })}
 
           {/* Show trace while task is in progress (no assistant message yet) */}
-          {activeTask && activeTask.status !== "completed" && activeTask.status !== "failed" && (
+          {activeTask && !["completed", "failed", "cancelled"].includes(activeTask.status) && (
             <TaskStream
               task={activeTask}
               messages={taskMessages}
@@ -998,21 +1020,36 @@ export function AgentChatView() {
                     <Mic className={cn("size-3.5", listening && "animate-pulse")} />
                   </Button>
                 )}
-                <Button
-                  size="icon-sm"
-                  onClick={handleSend}
-                  disabled={!input.trim() || sending}
-                  className={cn(
-                    "rounded-lg transition-opacity duration-200",
-                    !input.trim() && "opacity-40"
-                  )}
-                >
-                  {sending ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <ArrowUp className="size-3.5" />
-                  )}
-                </Button>
+                {isTaskActive && !input.trim() && !sending ? (
+                  <Button
+                    size="icon-sm"
+                    onClick={handleStop}
+                    disabled={cancelling}
+                    className="rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors duration-200"
+                  >
+                    {cancelling ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Square className="size-3.5 fill-current" />
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    size="icon-sm"
+                    onClick={handleSend}
+                    disabled={!input.trim() || sending}
+                    className={cn(
+                      "rounded-lg transition-opacity duration-200",
+                      !input.trim() && "opacity-40"
+                    )}
+                  >
+                    {sending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <ArrowUp className="size-3.5" />
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
           </div>
