@@ -379,27 +379,28 @@ export default function RuntimesPage() {
               const displayName =
                 machine.deviceInfo || machine.name || daemonId;
               return (
-                <Card key={daemonId} size="sm" className="group">
+                <Card key={daemonId} size="sm">
                   <CardHeader>
                     <div className="flex items-center gap-2 min-w-0">
                       <Monitor className="size-4 text-muted-foreground shrink-0" />
                       <CardTitle className="truncate">
                         {displayName}
                       </CardTitle>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      {machine.cliVersion && (
+                        <span className="text-xs text-muted-foreground/60">v{machine.cliVersion}</span>
+                      )}
                       <Badge
                         variant={
                           machine.status === "online"
                             ? "default"
                             : "outline"
                         }
-                        className="shrink-0"
                       >
                         {machine.status}
                       </Badge>
                     </div>
-                    {machine.cliVersion && (
-                      <span className="text-xs text-muted-foreground/60 shrink-0">v{machine.cliVersion}</span>
-                    )}
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-2.5">
@@ -461,7 +462,7 @@ export default function RuntimesPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-xs text-muted-foreground h-6 px-2 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="text-xs text-muted-foreground h-6 px-2 hover:text-destructive"
                             onClick={() => {
                               openConfirm(
                                 "Remove machine",
