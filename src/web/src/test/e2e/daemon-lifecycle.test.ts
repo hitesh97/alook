@@ -28,7 +28,6 @@ describe("daemon lifecycle", () => {
           {
             provider: "claude",
             runtime_mode: "local",
-            name: "Claude E2E",
             version: "4.0",
           },
         ],
@@ -54,7 +53,6 @@ describe("daemon lifecycle", () => {
           {
             provider: "claude",
             runtime_mode: "local",
-            name: "Claude E2E Updated",
             version: "4.1",
           },
         ],

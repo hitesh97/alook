@@ -42,10 +42,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   for (const rt of runtimes) {
     const provider = (rt.type || rt.provider || "unknown").trim();
     const runtimeMode = rt.runtime_mode || "local";
-    let name = (rt.name || "").trim();
-    if (!name) {
-      name = deviceName ? `${provider} (${deviceName})` : provider;
-    }
     const deviceInfo = deviceName.trim();
     const metadata: Record<string, unknown> = {
       version: rt.version || "",
@@ -55,7 +51,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     const result = await queries.runtime.upsertAgentRuntime(db, {
       workspaceId,
       daemonId,
-      name,
       runtimeMode,
       provider,
       deviceInfo,

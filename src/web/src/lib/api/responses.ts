@@ -176,7 +176,6 @@ export function runtimeToResponse(rt: any) {
     id: rt.id,
     workspace_id: rt.workspaceId,
     daemon_id: rt.daemonId || null,
-    name: rt.name,
     runtime_mode: rt.runtimeMode,
     provider: rt.provider,
     status: isOnline(lastSeenStr) ? "online" : "offline",

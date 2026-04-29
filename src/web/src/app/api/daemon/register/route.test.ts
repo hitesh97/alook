@@ -31,7 +31,7 @@ function sharedMocks() {
       broadcastToUser: (...a: any[]) => mockBroadcastToUser(...a),
     },
     "@/lib/api/responses": {
-      runtimeToResponse: (rt: any) => ({ id: rt.id, name: rt.name }),
+      runtimeToResponse: (rt: any) => ({ id: rt.id }),
     },
   };
 }
@@ -80,7 +80,7 @@ describe("POST /api/daemon/register", () => {
     device_name: "MyMachine",
     cli_version: "0.0.2",
     runtimes: [
-      { name: "claude", type: "claude", version: "1.0", runtime_mode: "local" },
+      { type: "claude", version: "1.0", runtime_mode: "local" },
     ],
   };
 
@@ -91,14 +91,14 @@ describe("POST /api/daemon/register", () => {
 
     mockGetMember.mockResolvedValue({ userId: "u1", workspaceId: "w1" });
     mockUpsertMachine.mockResolvedValue(undefined);
-    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", name: "claude" });
+    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1" });
     mockBroadcastToUser.mockResolvedValue(undefined);
 
     const res = await POST(makeReq(validBody));
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toEqual({ runtimes: [{ id: "r1", name: "claude" }] });
+    expect(body).toEqual({ runtimes: [{ id: "r1" }] });
     expect(mockUpsertMachine).toHaveBeenCalledTimes(1);
     expect(mockUpsertAgentRuntime).toHaveBeenCalledTimes(1);
   });
@@ -108,7 +108,7 @@ describe("POST /api/daemon/register", () => {
 
     mockGetMember.mockResolvedValue({ userId: "u1", workspaceId: "w1" });
     mockUpsertMachine.mockResolvedValue(undefined);
-    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", name: "claude" });
+    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1" });
     mockBroadcastToUser.mockResolvedValue(undefined);
 
     await POST(makeReq(validBody));
@@ -153,7 +153,7 @@ describe("POST /api/daemon/register", () => {
 
     mockGetMember.mockResolvedValue({ userId: "u1", workspaceId: "w1" });
     mockUpsertMachine.mockResolvedValue(undefined);
-    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", name: "claude" });
+    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1" });
     mockBroadcastToUser.mockResolvedValue(undefined);
 
     const res = await POST(makeReq(validBody));
@@ -167,7 +167,7 @@ describe("POST /api/daemon/register", () => {
 
     mockGetMember.mockResolvedValue({ userId: "u1", workspaceId: "w1" });
     mockUpsertMachine.mockResolvedValue(undefined);
-    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", name: "claude" });
+    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1" });
     mockBroadcastToUser.mockRejectedValue(new Error("ws down"));
 
     const res = await POST(makeReq(validBody));

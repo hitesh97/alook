@@ -281,7 +281,6 @@ export async function startDaemon(
 
   for (const ws of workspaces) {
     const runtimes = providers.map((p) => ({
-      name: config.runtimeName || `${p.type} (${config.deviceName})`,
       type: p.type,
       version: p.version,
     }));

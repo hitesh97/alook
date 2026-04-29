@@ -25,7 +25,7 @@ describe("CLI auto-update e2e", () => {
         device_name: "update-test-machine",
         cli_version: "0.0.1",
         runtimes: [
-          { provider: "claude", runtime_mode: "local", name: "Claude", version: "4.0" },
+          { provider: "claude", runtime_mode: "local", version: "4.0" },
         ],
       }),
     });

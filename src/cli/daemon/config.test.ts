@@ -11,7 +11,6 @@ const DAEMON_ENV_KEYS = [
   "ALOOK_AGENT_TIMEOUT",
   "ALOOK_DAEMON_MAX_CONCURRENT_TASKS",
   "ALOOK_CLAUDE_PATH",
-  "ALOOK_AGENT_RUNTIME_NAME",
   "ALOOK_DAEMON_ID",
   "ALOOK_WORKSPACES_ROOT",
   "ALOOK_DAEMON_DEVICE_NAME",
@@ -39,7 +38,6 @@ describe("loadDaemonConfig defaults", () => {
     expect(cfg.agentTimeout).toBe(43200000);
     expect(cfg.maxConcurrentTasks).toBe(20);
     expect(cfg.claudePath).toBe("claude");
-    expect(cfg.runtimeName).toBe("Local Agent");
     expect(cfg.messageInactivityTimeout).toBe(1200000);
   });
 });

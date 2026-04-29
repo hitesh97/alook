@@ -184,7 +184,6 @@ export const agentRuntime = sqliteTable(
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
     daemonId: text("daemon_id").notNull(),
-    name: text("name").notNull().default(""),
     runtimeMode: text("runtime_mode").notNull().default("local"),
     provider: text("provider").notNull(),
     deviceInfo: text("device_info").notNull().default(""),

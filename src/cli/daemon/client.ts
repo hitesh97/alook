@@ -56,7 +56,6 @@ export class DaemonClient {
       device_name: string;
       cli_version: string;
       runtimes: {
-        name: string;
         type: string;
         version: string;
       }[];

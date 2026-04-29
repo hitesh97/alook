@@ -268,7 +268,7 @@ export default function RuntimesPage() {
   // Group runtimes by machine
   const machines = new Map<
     string,
-    { deviceInfo: string; name: string; status: string; lastSeenAt: string | null; pendingUpdateVersion: string | null; pendingRescan: boolean; cliVersion: string | null; runtimes: Runtime[] }
+    { deviceInfo: string; status: string; lastSeenAt: string | null; pendingUpdateVersion: string | null; pendingRescan: boolean; cliVersion: string | null; runtimes: Runtime[] }
   >();
   for (const rt of runtimes) {
     const key = rt.daemon_id || rt.id;
@@ -276,7 +276,6 @@ export default function RuntimesPage() {
       const meta = rt.metadata as Record<string, unknown> | null;
       machines.set(key, {
         deviceInfo: typeof rt.device_info === "string" ? rt.device_info : "",
-        name: rt.name || "",
         status: rt.status,
         lastSeenAt: rt.last_seen_at,
         pendingUpdateVersion: rt.pending_update_version ?? null,
@@ -376,7 +375,7 @@ export default function RuntimesPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from(machines.entries()).map(([daemonId, machine]) => {
               const displayName =
-                machine.deviceInfo || machine.name || daemonId;
+                machine.deviceInfo || daemonId;
               return (
                 <Card key={daemonId} size="sm">
                   <CardHeader>

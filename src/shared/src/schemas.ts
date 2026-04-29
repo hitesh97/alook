@@ -142,7 +142,6 @@ export const DaemonRuntimeItemSchema = z.object({
   type: z.string().optional(),
   provider: z.string().optional(),
   runtime_mode: z.string().optional(),
-  name: z.string().optional(),
   version: z.string().optional(),
   status: z.string().optional(),
   model: z.string().optional(),

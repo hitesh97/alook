@@ -34,7 +34,6 @@ vi.mock("./config.js", () => ({
     maxConcurrentTasks: 20,
     daemonId: "d1",
     deviceName: "test-host",
-    runtimeName: "Local Agent",
     workspacesRoot: "/tmp/ws",
     cliVersion: "0.1.0",
   })),

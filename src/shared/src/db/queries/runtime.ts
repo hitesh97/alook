@@ -7,7 +7,6 @@ export async function upsertAgentRuntime(
   data: {
     workspaceId: string;
     daemonId: string;
-    name: string;
     runtimeMode: string;
     provider: string;
     deviceInfo: string;
@@ -20,7 +19,6 @@ export async function upsertAgentRuntime(
     .values({
       workspaceId: data.workspaceId,
       daemonId: data.daemonId,
-      name: data.name,
       runtimeMode: data.runtimeMode,
       provider: data.provider,
       deviceInfo: data.deviceInfo,
@@ -33,7 +31,6 @@ export async function upsertAgentRuntime(
         agentRuntime.provider,
       ],
       set: {
-        name: data.name,
         runtimeMode: data.runtimeMode,
         deviceInfo: data.deviceInfo,
         metadata: data.metadata ?? null,
@@ -50,7 +47,6 @@ export async function listAgentRuntimes(db: Database, workspaceId: string) {
       id: agentRuntime.id,
       workspaceId: agentRuntime.workspaceId,
       daemonId: agentRuntime.daemonId,
-      name: agentRuntime.name,
       runtimeMode: agentRuntime.runtimeMode,
       provider: agentRuntime.provider,
       deviceInfo: agentRuntime.deviceInfo,
@@ -90,7 +86,6 @@ export async function getAgentRuntimeForWorkspace(
       id: agentRuntime.id,
       workspaceId: agentRuntime.workspaceId,
       daemonId: agentRuntime.daemonId,
-      name: agentRuntime.name,
       runtimeMode: agentRuntime.runtimeMode,
       provider: agentRuntime.provider,
       deviceInfo: agentRuntime.deviceInfo,

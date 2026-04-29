@@ -41,7 +41,6 @@ export interface AgentRuntime {
   id: string;
   workspace_id: string;
   daemon_id: string | null;
-  name: string;
   runtime_mode: string;
   provider: string;
   status: string;

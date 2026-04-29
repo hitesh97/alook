@@ -48,11 +48,9 @@ export async function POST(req: NextRequest) {
 
   const results = [];
   for (const rt of runtimes) {
-    const name = `${rt.type} (${hostname})`;
     const result = await queries.runtime.upsertAgentRuntime(db, {
       workspaceId: mt.workspaceId,
       daemonId,
-      name,
       runtimeMode: "local",
       provider: rt.type,
       deviceInfo: hostname,

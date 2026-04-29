@@ -74,7 +74,6 @@ export interface DaemonConfig {
   maxConcurrentTasks: number;
   daemonId: string;
   deviceName: string;
-  runtimeName: string;
   workspacesRoot: string;
   cliVersion: string;
 }
@@ -112,7 +111,6 @@ export function loadDaemonConfig(profile?: string): DaemonConfig {
     ),
     daemonId,
     deviceName: process.env.ALOOK_DAEMON_DEVICE_NAME || h,
-    runtimeName: process.env.ALOOK_AGENT_RUNTIME_NAME || "Local Agent",
     workspacesRoot,
     cliVersion: getCurrentVersion(),
   };

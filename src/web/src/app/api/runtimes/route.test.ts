@@ -35,7 +35,7 @@ vi.mock("@/lib/middleware/workspace", () => ({
 }));
 
 vi.mock("@/lib/api/responses", () => ({
-  runtimeToResponse: vi.fn((rt: any) => ({ id: rt.id, name: rt.name, status: rt.status })),
+  runtimeToResponse: vi.fn((rt: any) => ({ id: rt.id, status: rt.status })),
 }));
 
 vi.mock("@/lib/middleware/helpers", () => {
@@ -54,8 +54,8 @@ describe("GET /api/runtimes", () => {
   it("lists runtimes in workspace", async () => {
     mockSweepStaleState.mockResolvedValue(undefined);
     mockListAgentRuntimes.mockResolvedValue([
-      { id: "r1", name: "Runtime 1", status: "online" },
-      { id: "r2", name: "Runtime 2", status: "offline" },
+      { id: "r1", status: "online" },
+      { id: "r2", status: "offline" },
     ]);
 
     const req = new NextRequest("http://localhost/api/runtimes");
@@ -63,8 +63,8 @@ describe("GET /api/runtimes", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual([
-      { id: "r1", name: "Runtime 1", status: "online" },
-      { id: "r2", name: "Runtime 2", status: "offline" },
+      { id: "r1", status: "online" },
+      { id: "r2", status: "offline" },
     ]);
     expect(mockListAgentRuntimes).toHaveBeenCalledWith({}, "w1");
   });

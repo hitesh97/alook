@@ -27,7 +27,6 @@ function groupRuntimes(runtimes: Runtime[]) {
       groups.set(key, {
         label:
           (typeof rt.device_info === "string" ? rt.device_info : "") ||
-          rt.name ||
           key,
         runtimes: [],
       });
@@ -65,7 +64,6 @@ export function RuntimeSelect({
       items={runtimes.map((rt) => {
         const machine =
           (typeof rt.device_info === "string" ? rt.device_info : "") ||
-          rt.name ||
           "";
         const label = machine ? `${rt.provider} (${machine})` : rt.provider;
         return { value: rt.id, label };

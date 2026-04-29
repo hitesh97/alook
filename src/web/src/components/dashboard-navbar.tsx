@@ -252,7 +252,7 @@ export function DashboardNavbar() {
                       {(() => {
                         const machines = new Map<
                           string,
-                          { deviceInfo: string; name: string; runtimes: Runtime[] }
+                          { deviceInfo: string; runtimes: Runtime[] }
                         >();
                         for (const rt of runtimes) {
                           const key = rt.daemon_id || rt.id;
@@ -262,7 +262,6 @@ export function DashboardNavbar() {
                                 typeof rt.device_info === "string"
                                   ? rt.device_info
                                   : "",
-                              name: rt.name || "",
                               runtimes: [],
                             });
                           }
@@ -272,7 +271,7 @@ export function DashboardNavbar() {
                         return Array.from(machines.entries()).map(
                           ([daemonId, machine]) => {
                             const displayName =
-                              machine.deviceInfo || machine.name || daemonId;
+                              machine.deviceInfo || daemonId;
 
                             return (
                               <div

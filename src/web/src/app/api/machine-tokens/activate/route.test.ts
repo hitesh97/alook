@@ -34,7 +34,7 @@ function sharedMocks() {
       broadcastToUser: (...a: any[]) => mockBroadcastToUser(...a),
     },
     "@/lib/api/responses": {
-      runtimeToResponse: (rt: any) => ({ id: rt.id, name: rt.name, provider: rt.provider }),
+      runtimeToResponse: (rt: any) => ({ id: rt.id, provider: rt.provider }),
     },
   };
 }
@@ -88,7 +88,7 @@ describe("POST /api/machine-tokens/activate", () => {
 
     mockGetMachineTokenByToken.mockResolvedValue(pendingToken);
     mockUpsertMachine.mockResolvedValue(undefined);
-    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", name: "claude (TestMachine.local)", provider: "claude" });
+    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", provider: "claude" });
     mockActivateMachineToken.mockResolvedValue(undefined);
     mockBroadcastToUser.mockResolvedValue(undefined);
 
@@ -132,7 +132,7 @@ describe("POST /api/machine-tokens/activate", () => {
 
     mockGetMachineTokenByToken.mockResolvedValue(pendingToken);
     mockUpsertMachine.mockResolvedValue(undefined);
-    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", name: "claude (TestMachine.local)", provider: "claude" });
+    mockUpsertAgentRuntime.mockResolvedValue({ id: "r1", provider: "claude" });
     mockActivateMachineToken.mockResolvedValue(undefined);
     mockBroadcastToUser.mockResolvedValue(undefined);
 
@@ -148,7 +148,6 @@ describe("POST /api/machine-tokens/activate", () => {
     expect(mockUpsertAgentRuntime).toHaveBeenCalledWith(expect.anything(), {
       workspaceId: "sp_correct_workspace",
       daemonId: "TestMachine.local",
-      name: "claude (TestMachine.local)",
       runtimeMode: "local",
       provider: "claude",
       deviceInfo: "TestMachine.local",

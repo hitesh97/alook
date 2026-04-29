@@ -96,7 +96,6 @@ describe("runtimeToResponse", () => {
       id: "rt1",
       workspaceId: "w1",
       daemonId: null,
-      name: "Rt",
       runtimeMode: "docker",
       provider: "local",
       deviceInfo: "mac",
@@ -112,7 +111,6 @@ describe("runtimeToResponse", () => {
       id: "rt1",
       workspaceId: "w1",
       daemonId: null,
-      name: "Rt",
       runtimeMode: "docker",
       provider: "local",
       deviceInfo: "mac",
@@ -127,7 +125,6 @@ describe("runtimeToResponse", () => {
     const res = runtimeToResponse({
       id: "rt1",
       workspaceId: "w1",
-      name: "Rt",
       runtimeMode: "docker",
       provider: "local",
       deviceInfo: "mac",
@@ -143,7 +140,6 @@ describe("runtimeToResponse", () => {
       id: "rt1",
       workspaceId: "w1",
       daemonId: "d1",
-      name: "Rt",
       runtimeMode: "docker",
       provider: "local",
       deviceInfo: "mac",
@@ -159,7 +155,6 @@ describe("runtimeToResponse", () => {
       id: "rt1",
       workspaceId: "w1",
       daemonId: "d1",
-      name: "Rt",
       runtimeMode: "docker",
       provider: "local",
       deviceInfo: "mac",
@@ -176,7 +171,6 @@ describe("runtimeToResponse", () => {
       id: "rt1",
       workspaceId: "w1",
       daemonId: "d1",
-      name: "Rt",
       runtimeMode: "docker",
       provider: "local",
       deviceInfo: "mac",
@@ -403,13 +397,13 @@ describe("MachineTokenResponse shape", () => {
 describe("AgentRuntimeResponse shape", () => {
   it("has expected keys", () => {
     const res = runtimeToResponse({
-      id: "rt1", workspaceId: "w1", daemonId: "d1", name: "Rt", runtimeMode: "docker",
+      id: "rt1", workspaceId: "w1", daemonId: "d1", runtimeMode: "docker",
       provider: "local", deviceInfo: "mac", metadata: { foo: 1 },
       machineLastSeenAt: new Date().toISOString(), ...baseFields(),
     });
     expect(Object.keys(res).sort()).toEqual([
       "created_at", "daemon_id", "device_info", "id", "last_seen_at",
-      "metadata", "name", "pending_rescan", "pending_update_version", "provider", "runtime_mode", "status",
+      "metadata", "pending_rescan", "pending_update_version", "provider", "runtime_mode", "status",
       "updated_at", "workspace_id",
     ]);
   });
@@ -445,7 +439,7 @@ describe("all response mappers strip milliseconds from timestamps", () => {
 
   it("runtimeToResponse strips milliseconds", () => {
     const res = runtimeToResponse({
-      id: "rt1", workspaceId: "w1", daemonId: "d1", name: "Rt", runtimeMode: "docker",
+      id: "rt1", workspaceId: "w1", daemonId: "d1", runtimeMode: "docker",
       provider: "local", deviceInfo: "mac", metadata: {},
       machineLastSeenAt: ts, ...baseFields(),
     });
