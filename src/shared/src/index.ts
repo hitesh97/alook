@@ -20,7 +20,6 @@ export type {
   MeetingSession,
   Channel,
   WsMessage,
-  WorkspaceFileEntry,
   WorkspaceFileResult,
 } from "./types";
 
@@ -159,6 +158,7 @@ export type {
   UpdateEmailAccountRequest,
   TestEmailConnectionRequest,
   FileRequestItem,
+  WorkspaceFileEntry,
   WorkspaceFileBrowseRequest,
   WorkspaceFileReport,
 } from "./schemas";

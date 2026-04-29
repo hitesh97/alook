@@ -554,6 +554,7 @@ export const WorkspaceFileEntrySchema = z.object({
   size: z.number(),
   modifiedAt: z.string(),
 });
+export type WorkspaceFileEntry = z.infer<typeof WorkspaceFileEntrySchema>;
 
 export const WorkspaceFileReportSchema = z.object({
   request_id: z.string().min(1),

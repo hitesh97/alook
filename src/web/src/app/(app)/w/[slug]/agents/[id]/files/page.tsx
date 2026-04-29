@@ -72,7 +72,7 @@ export default function AgentFilesPage() {
   }, []);
 
   const setNodeLoading = useCallback((path: string, loading: boolean) => {
-    setRootNodes((prev) => setLoadingRecursive(prev, path, loading));
+    setRootNodes((prev) => updateNodeRecursive(prev, path, (n) => ({ ...n, loading })));
   }, []);
 
   // --- Request helpers ---
@@ -156,7 +156,7 @@ export default function AgentFilesPage() {
         return;
       }
 
-      setRootNodes((prev) => updateNodesRecursive(prev, path, childNodes));
+      setRootNodes((prev) => updateNodeRecursive(prev, path, (n) => ({ ...n, children: childNodes, loading: false, expanded: true })));
     },
     [],
   );
@@ -202,7 +202,7 @@ export default function AgentFilesPage() {
     (path: string, node: TreeNode) => {
       if (node.expanded) {
         // Collapse
-        setRootNodes((prev) => toggleExpandRecursive(prev, path, false));
+        setRootNodes((prev) => updateNodeRecursive(prev, path, (n) => ({ ...n, expanded: false })));
         return;
       }
       // Expand: load if needed
@@ -210,7 +210,7 @@ export default function AgentFilesPage() {
         setNodeLoading(path, true);
         requestTree(path);
       }
-      setRootNodes((prev) => toggleExpandRecursive(prev, path, true));
+      setRootNodes((prev) => updateNodeRecursive(prev, path, (n) => ({ ...n, expanded: true })));
     },
     [requestTree, setNodeLoading],
   );
@@ -459,39 +459,17 @@ function TreeNodeRow({
   );
 }
 
-// --- Recursive tree update helpers ---
+// --- Recursive tree update helper ---
 
-function updateNodesRecursive(nodes: TreeNode[], targetPath: string, children: TreeNode[]): TreeNode[] {
+function updateNodeRecursive(
+  nodes: TreeNode[],
+  targetPath: string,
+  updater: (node: TreeNode) => TreeNode,
+): TreeNode[] {
   return nodes.map((node) => {
-    if (node.entry.path === targetPath) {
-      return { ...node, children, loading: false, expanded: true };
-    }
+    if (node.entry.path === targetPath) return updater(node);
     if (node.children && targetPath.startsWith(node.entry.path + "/")) {
-      return { ...node, children: updateNodesRecursive(node.children, targetPath, children) };
-    }
-    return node;
-  });
-}
-
-function setLoadingRecursive(nodes: TreeNode[], targetPath: string, loading: boolean): TreeNode[] {
-  return nodes.map((node) => {
-    if (node.entry.path === targetPath) {
-      return { ...node, loading };
-    }
-    if (node.children && targetPath.startsWith(node.entry.path + "/")) {
-      return { ...node, children: setLoadingRecursive(node.children, targetPath, loading) };
-    }
-    return node;
-  });
-}
-
-function toggleExpandRecursive(nodes: TreeNode[], targetPath: string, expanded: boolean): TreeNode[] {
-  return nodes.map((node) => {
-    if (node.entry.path === targetPath) {
-      return { ...node, expanded };
-    }
-    if (node.children && targetPath.startsWith(node.entry.path + "/")) {
-      return { ...node, children: toggleExpandRecursive(node.children, targetPath, expanded) };
+      return { ...node, children: updateNodeRecursive(node.children, targetPath, updater) };
     }
     return node;
   });

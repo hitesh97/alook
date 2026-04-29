@@ -1,5 +1,6 @@
 import { readdir, stat, readFile } from "fs/promises";
 import { join, resolve, extname, relative } from "path";
+import type { WorkspaceFileEntry } from "@alook/shared";
 
 const SKIP_DIRS = new Set([".git", "node_modules", ".next", ".wrangler", "__pycache__", ".venv"]);
 
@@ -13,18 +14,10 @@ const TEXT_EXTENSIONS = new Set([
 
 const MAX_FILE_SIZE = 1_048_576; // 1MB
 
-export interface FileEntry {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  size: number;
-  modifiedAt: string;
-}
-
 export async function readDirectoryTree(
   dirPath: string,
   basePath: string,
-): Promise<FileEntry[]> {
+): Promise<WorkspaceFileEntry[]> {
   let entries;
   try {
     entries = await readdir(dirPath, { withFileTypes: true });
@@ -38,7 +31,7 @@ export async function readDirectoryTree(
     return a.name.localeCompare(b.name);
   });
 
-  const results: FileEntry[] = [];
+  const results: WorkspaceFileEntry[] = [];
   for (const entry of entries) {
     if (entry.name.startsWith(".") && entry.name !== ".context_timeline") continue;
     if (SKIP_DIRS.has(entry.name)) continue;
@@ -80,6 +73,6 @@ export async function readFileContent(
 
 export function validatePath(agentWorkdir: string, requestedPath: string): string | null {
   const resolved = resolve(agentWorkdir, requestedPath);
-  if (!resolved.startsWith(agentWorkdir)) return null;
+  if (resolved !== agentWorkdir && !resolved.startsWith(agentWorkdir + "/")) return null;
   return resolved;
 }

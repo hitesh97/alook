@@ -1,4 +1,4 @@
-import type { TaskApi } from "./schemas";
+import type { TaskApi, WorkspaceFileEntry } from "./schemas";
 
 export type EmailDirection = "inbound" | "outbound";
 
@@ -237,14 +237,6 @@ export type WsMessage =
   | { type: "followup.deleted"; conversationId: string; messageId: string }
   | { type: "followup.dispatch_failed"; conversationId: string; messageId: string; error: string }
   | { type: "workspace.files"; agentId: string; requestId: string; requestType: "tree" | "read"; result: WorkspaceFileResult }
-
-export interface WorkspaceFileEntry {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  size: number;
-  modifiedAt: string;
-}
 
 export interface WorkspaceFileResult {
   entries?: WorkspaceFileEntry[];

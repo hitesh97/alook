@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import { queries, PollRequestSchema, semverGte } from "@alook/shared";
+import { queries, PollRequestSchema, semverGte, type FileRequestItem } from "@alook/shared";
 import { getDb } from "@/lib/db"
 import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
@@ -176,7 +176,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   }
 
   // 7. Pending file browse requests + cleanup
-  let fileRequests: { id: string; agent_id: string; request_type: string; path: string }[] | undefined;
+  let fileRequests: FileRequestItem[] | undefined;
   try {
     await queries.workspaceFileRequest.expireStale(db, ctx.workspaceId);
     const pending = await queries.workspaceFileRequest.getPendingByWorkspace(db, ctx.workspaceId);
@@ -184,7 +184,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       fileRequests = pending.map((r) => ({
         id: r.id,
         agent_id: r.agentId,
-        request_type: r.requestType,
+        request_type: r.requestType as "tree" | "read",
         path: r.path,
       }));
       await queries.workspaceFileRequest.markDispatched(db, pending.map((r) => r.id));
@@ -197,6 +197,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     tasks,
     ...(pendingUpdate && { pending_update: pendingUpdate }),
     ...(pendingRescan && { pending_rescan: pendingRescan }),
-    ...(fileRequests && fileRequests.length > 0 && { file_requests: fileRequests }),
+    ...(fileRequests && { file_requests: fileRequests }),
   });
 });

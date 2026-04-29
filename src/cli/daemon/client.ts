@@ -1,9 +1,11 @@
 import {
   PollResponseSchema,
   RegisterResponseSchema,
+  type FileRequestItem,
   type PollResponse,
   type RegisterResponse,
   type TaskApi,
+  type WorkspaceFileReport,
 } from "@alook/shared";
 
 export class DaemonClient {
@@ -85,7 +87,7 @@ export class DaemonClient {
     evicted: boolean;
     pending_update?: { version: string };
     pending_rescan?: boolean;
-    file_requests?: { id: string; agent_id: string; request_type: string; path: string }[];
+    file_requests?: FileRequestItem[];
   }> {
     const raw = await this.request<unknown>(
       "POST",
@@ -199,17 +201,7 @@ export class DaemonClient {
     );
   }
 
-  reportFileData(
-    token: string,
-    body: {
-      request_id: string;
-      entries?: { name: string; path: string; isDirectory: boolean; size: number; modifiedAt: string }[];
-      content?: string | null;
-      isBinary?: boolean;
-      error?: string;
-      path: string;
-    },
-  ) {
+  reportFileData(token: string, body: WorkspaceFileReport) {
     return this.request(
       "POST",
       "/api/daemon/workspace/report",
