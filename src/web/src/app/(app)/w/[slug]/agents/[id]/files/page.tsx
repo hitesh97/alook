@@ -317,7 +317,7 @@ export default function AgentFilesPage() {
           )}
         </div>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         {fileLoading ? (
           <div className="p-4 space-y-2">
             {Array.from({ length: 10 }).map((_, i) => (
