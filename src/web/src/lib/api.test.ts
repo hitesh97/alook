@@ -197,3 +197,42 @@ describe("apiFetch", () => {
     }
   });
 });
+
+describe("getTaskStepCounts", () => {
+  it("sends POST with task_ids and workspace_id", async () => {
+    const counts = { "t1": 5, "t2": 12 };
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => counts,
+    });
+
+    const { getTaskStepCounts } = await getApiFetch();
+    const result = await getTaskStepCounts(["t1", "t2"], "ws-1");
+    expect(result).toEqual(counts);
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/tasks/step-counts"),
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ task_ids: ["t1", "t2"] }),
+      })
+    );
+
+    const calledUrl = mockFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("workspace_id=ws-1");
+  });
+
+  it("returns empty object for empty task_ids", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    });
+
+    const { getTaskStepCounts } = await getApiFetch();
+    const result = await getTaskStepCounts([], "ws-1");
+    expect(result).toEqual({});
+  });
+});

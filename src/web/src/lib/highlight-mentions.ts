@@ -23,6 +23,7 @@ export function highlightMentions(content: string, agents: Agent[]): string {
     start: number
     end: number
     name: string
+    agentId: string
   }
 
   const matches: Match[] = []
@@ -52,8 +53,7 @@ export function highlightMentions(content: string, agents: Agent[]): string {
       const overlaps = matches.some(m => i >= m.start && i < m.end)
       if (overlaps) break
 
-      // Only wrap the @Name part in <mention>, leave the (email) outside
-      matches.push({ start: i, end: nameEnd, name: agent.name })
+      matches.push({ start: i, end: nameEnd, name: agent.name, agentId: agent.id })
       break
     }
   }
@@ -63,7 +63,7 @@ export function highlightMentions(content: string, agents: Agent[]): string {
   for (let i = matches.length - 1; i >= 0; i--) {
     const m = matches[i]
     const name = result.slice(m.start + 1, m.end)
-    result = result.slice(0, m.start) + `@<mention>${name}</mention>` + result.slice(m.end)
+    result = result.slice(0, m.start) + `@<mention data-agent-id="${m.agentId}">${name}</mention>` + result.slice(m.end)
   }
 
   return result

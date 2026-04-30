@@ -15,6 +15,7 @@ import {
   sendMessage,
   getTask,
   getTaskMessages,
+  getTaskStepCounts,
   listArtifacts,
   listBufferedMessages,
   createBufferedMessage,
@@ -40,15 +41,37 @@ import { ArtifactSheet, formatSize } from "@/components/agent-chat/artifact-shee
 import { isPreviewable, getArtifactUrl } from "@/components/artifact-content-renderer";
 import { Streamdown } from "streamdown";
 import { FollowUpBuffer } from "@/components/agent-chat/follow-up-buffer";
+import { HistoricalTaskSteps } from "@/components/agent-chat/historical-task-steps";
+import { AgentPreviewCard } from "@/components/agent-preview-card";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 
 const MESSAGE_LIMIT = 20;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
-const MENTION_ALLOWED_TAGS = { mention: [] as string[] };
+const MENTION_ALLOWED_TAGS = { mention: ["data-agent-id"] };
 const MENTION_LITERAL_TAGS = ["mention"];
-const MentionHighlight = ({ children }: { children?: React.ReactNode }) => (
-  <span className="mention-highlight">{children}</span>
-);
+function MentionHighlight(props: Record<string, unknown> & { children?: React.ReactNode }) {
+  const { children, ...rest } = props;
+  const { agents } = useAgentContext();
+  const agentId = (rest["data-agent-id"] ?? rest.dataAgentId) as string | undefined;
+  let agent = agentId ? agents.find((a) => a.id === agentId) : undefined;
+  if (!agent && typeof children === "string") {
+    agent = agents.find((a) => a.name.toLowerCase() === children.toLowerCase());
+  }
+  if (agent) {
+    return (
+      <Popover>
+        <PopoverTrigger openOnHover delay={300} nativeButton={false} render={<span className="mention-highlight cursor-pointer" />}>
+          {children}
+        </PopoverTrigger>
+        <PopoverContent side="top" className="w-70">
+          <AgentPreviewCard agent={agent} />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+  return <span className="mention-highlight">{children}</span>;
+}
 const MENTION_COMPONENTS = { mention: MentionHighlight };
 
 /** Sort messages by (created_at, id) ascending — guarantees chronological order. */
@@ -214,6 +237,7 @@ export function AgentChatView() {
   const [previousConversations, setPreviousConversations] = useState<PreviousConversation[]>([]);
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const [napMarkers, setNapMarkers] = useState<NapMarker[]>([]);
+  const [stepCounts, setStepCounts] = useState<Record<string, number>>({});
 
   const pendingFilesMapRef = useRef<Map<string, File[]>>(new Map());
 
@@ -289,6 +313,7 @@ export function AgentChatView() {
     setTaskMessages([]);
     setBufferedMessages([]);
     setNapMarkers([]);
+    setStepCounts({});
     setPreviousConversations([]);
     setHasMoreConversations(false);
     oldestConvIdRef.current = null;
@@ -306,6 +331,12 @@ export function AgentChatView() {
             setMessages(msgs);
             setHasMore(msgs.length >= MESSAGE_LIMIT);
             setArtifacts(arts);
+            const taskIds = [...new Set(msgs.filter((m) => m.role === "assistant" && m.task_id).map((m) => m.task_id!))];
+            if (taskIds.length > 0) {
+              getTaskStepCounts(taskIds, workspaceId)
+                .then(setStepCounts)
+                .catch(() => {});
+            }
           } catch {
             const data = await chatInit(agentId, workspaceId, activeChannel);
             setConversation(data.conversation);
@@ -1108,6 +1139,15 @@ export function AgentChatView() {
               msg.task_id === activeTask.id &&
               taskMessages.length > 0;
 
+            const historicalStepCount =
+              !hasTaskStream &&
+              targetConvId &&
+              msg.role === "assistant" &&
+              msg.task_id &&
+              stepCounts[msg.task_id] > 0
+                ? stepCounts[msg.task_id]
+                : 0;
+
             return (
               <React.Fragment key={msg.id}>
                 {hasTaskStream && (
@@ -1116,6 +1156,13 @@ export function AgentChatView() {
                     messages={taskMessages}
                     connectionLost={connectionLost}
                     onRetry={handleRetryTask}
+                  />
+                )}
+                {historicalStepCount > 0 && msg.task_id && (
+                  <HistoricalTaskSteps
+                    taskId={msg.task_id}
+                    stepCount={historicalStepCount}
+                    workspaceId={workspaceId}
                   />
                 )}
                 {msg.role === "user" ? (() => {
@@ -1220,7 +1267,7 @@ export function AgentChatView() {
                       input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"),
                       agents,
                     )
-                      .replace(/<mention>/g, '<span class="mention-highlight">')
+                      .replace(/<mention[^>]*>/g, '<span class="mention-highlight">')
                       .replace(/<\/mention>/g, "</span>")
                     : "",
                 }}

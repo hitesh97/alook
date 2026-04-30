@@ -277,11 +277,17 @@ export function TaskStream({
   messages,
   connectionLost,
   onRetry,
+  stepCountHint,
+  onExpandSteps,
+  stepsLoading,
 }: {
   task: Task;
   messages: TaskMessage[];
   connectionLost?: boolean;
   onRetry?: () => void;
+  stepCountHint?: number;
+  onExpandSteps?: () => void;
+  stepsLoading?: boolean;
 }) {
   const [retrying, setRetrying] = useState(false);
   const allItems = useMemo(() => groupMessages(messages), [messages]);
@@ -291,6 +297,7 @@ export function TaskStream({
   const textItems = allItems.filter((i): i is TextItem => i.kind === "text");
 
   const toolScrollRef = useRef<HTMLDivElement>(null);
+  const expandedRef = useRef(false);
 
   // Auto-scroll tool area to bottom while running
   useEffect(() => {
@@ -298,6 +305,16 @@ export function TaskStream({
       toolScrollRef.current.scrollTop = toolScrollRef.current.scrollHeight;
     }
   }, [toolItems.length, isRunning]);
+
+  const displayStepCount = toolItems.length > 0 ? toolItems.length : stepCountHint ?? 0;
+  const showStepsSection = toolItems.length > 0 || (stepCountHint && stepCountHint > 0);
+
+  const handleStepsToggle = (e: React.SyntheticEvent<HTMLDetailsElement>) => {
+    if ((e.currentTarget as HTMLDetailsElement).open && !expandedRef.current && onExpandSteps) {
+      expandedRef.current = true;
+      onExpandSteps();
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -330,8 +347,8 @@ export function TaskStream({
       </div>
 
       {/* Tool stream zone — foldable, height-limited, scrollable */}
-      {toolItems.length > 0 && (
-        <details className="group/stream pl-1">
+      {showStepsSection && (
+        <details className="group/stream pl-1" onToggle={handleStepsToggle}>
           <summary
             className={cn(
               "flex items-center gap-1.5 py-1 cursor-pointer select-none",
@@ -341,12 +358,18 @@ export function TaskStream({
             )}
           >
             <ChevronRight className={cn("size-3 shrink-0 text-muted-foreground/60 transition-transform duration-150 group-open/stream:rotate-90", isRunning && "animate-pulse text-primary")} />
-            <span><AnimatedNumber value={toolItems.length} /> {toolItems.length === 1 ? "step" : "steps"}</span>
+            <span><AnimatedNumber value={displayStepCount} /> {displayStepCount === 1 ? "step" : "steps"}</span>
           </summary>
           <div
             ref={toolScrollRef}
             className="mt-1 max-h-80 overflow-y-auto overflow-x-hidden thin-scrollbar space-y-0.5 pl-1"
           >
+            {stepsLoading && toolItems.length === 0 && (
+              <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                <Loader2 className="size-3 animate-spin" />
+                <span>Loading steps...</span>
+              </div>
+            )}
             {toolItems.map((item) => {
               switch (item.kind) {
                 case "tool-call":

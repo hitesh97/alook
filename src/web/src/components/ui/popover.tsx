@@ -16,10 +16,12 @@ function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {
 function PopoverContent({
   className,
   children,
+  side,
   sideOffset = 6,
   align = "start",
   ...props
 }: PopoverPrimitive.Popup.Props & {
+  side?: "top" | "bottom" | "left" | "right" | "inline-end" | "inline-start"
   sideOffset?: number
   align?: "start" | "center" | "end"
 }) {
@@ -32,6 +34,7 @@ function PopoverContent({
   return (
     <PopoverPrimitive.Portal container={container}>
       <PopoverPrimitive.Positioner
+        side={side}
         sideOffset={sideOffset}
         align={align}
         style={{ zIndex: 60 }}

@@ -469,6 +469,15 @@ export const retryTask = (id: string, workspaceId: string) =>
     method: "POST",
   });
 
+export const getTaskStepCounts = (taskIds: string[], workspaceId: string) =>
+  apiFetch<Record<string, number>>(
+    `/api/tasks/step-counts${wsQuery(workspaceId)}`,
+    {
+      method: "POST",
+      body: JSON.stringify({ task_ids: taskIds }),
+    }
+  );
+
 // Emails
 export const listEmails = (agentId: string, workspaceId: string, folder?: string, address?: string) =>
   apiFetch<Email[]>(`/api/email${wsQuery(workspaceId, { agentId, ...(folder ? { folder } : {}), ...(address ? { address } : {}) })}`);

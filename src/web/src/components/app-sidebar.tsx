@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
+import type { Agent } from "@alook/shared";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
 import { Monitor, SunMoon, Plus, LayoutGrid, CalendarDays, Settings, PinIcon, PinOffIcon } from "lucide-react";
@@ -16,6 +18,81 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "@/components/ui/context-menu";
+import { AgentPreviewCard } from "@/components/agent-preview-card";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+
+function AgentSidebarButton({
+  agent,
+  isActive,
+  isPinned,
+  taskCount,
+  onClick,
+  onPin,
+  onUnpin,
+}: {
+  agent: Agent;
+  isActive: boolean;
+  isPinned: boolean;
+  taskCount: number;
+  onClick: () => void;
+  onPin: () => void;
+  onUnpin: () => void;
+}) {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  return (
+    <Popover
+      open={previewOpen}
+      onOpenChange={(open, event) => {
+        if (open && event.reason === "trigger-press") return;
+        setPreviewOpen(open);
+      }}
+    >
+      <ContextMenu>
+        <PopoverTrigger
+          openOnHover
+          delay={10}
+          render={
+            <ContextMenuTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={() => { setPreviewOpen(false); onClick(); }}
+                  className={cn(
+                    "relative flex shrink-0 items-center justify-center size-10 rounded-xl text-sm font-medium transition-colors duration-200 cursor-pointer",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "bg-secondary text-secondary-foreground hover:bg-accent"
+                  )}
+                />
+              }
+            />
+          }
+        >
+          {agent.name.charAt(0).toUpperCase()}
+          {taskCount > 0 && (
+            <span className="absolute bottom-0 right-0 size-2 rounded-full bg-status-online animate-pulse ring-2 ring-background" />
+          )}
+        </PopoverTrigger>
+        <ContextMenuContent>
+          {isPinned ? (
+            <ContextMenuItem onClick={onUnpin}>
+              <PinOffIcon className="size-3.5 mr-1.5" />
+              Unpin
+            </ContextMenuItem>
+          ) : (
+            <ContextMenuItem onClick={onPin}>
+              <PinIcon className="size-3.5 mr-1.5" />
+              Pin to top
+            </ContextMenuItem>
+          )}
+        </ContextMenuContent>
+      </ContextMenu>
+      <PopoverContent side="right" className="w-70">
+        <AgentPreviewCard agent={agent} />
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const router = useRouter();
@@ -51,53 +128,18 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     onNavigate?.();
   };
 
-  const renderAgentButton = (agent: typeof agents[number]) => {
-    const isActive = activeAgentId === agent.id;
-    const isPinned = pins.has(agent.id);
-    return (
-      <Tooltip key={agent.id}>
-        <ContextMenu>
-          <TooltipTrigger
-            render={
-              <ContextMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={() => handleAgentClick(agent.id)}
-                    className={cn(
-                      "relative flex shrink-0 items-center justify-center size-10 rounded-xl text-sm font-medium transition-colors duration-200 cursor-pointer",
-                      isActive
-                        ? "bg-primary text-primary-foreground shadow-sm"
-                        : "bg-secondary text-secondary-foreground hover:bg-accent"
-                    )}
-                  />
-                }
-              />
-            }
-          >
-            {agent.name.charAt(0).toUpperCase()}
-            {(taskCounts[agent.id] ?? 0) > 0 && (
-              <span className="absolute bottom-0 right-0 size-2 rounded-full bg-status-online animate-pulse ring-2 ring-background" />
-            )}
-          </TooltipTrigger>
-          <ContextMenuContent>
-            {isPinned ? (
-              <ContextMenuItem onClick={() => handleUnpinAgent(agent.id)}>
-                <PinOffIcon className="size-3.5 mr-1.5" />
-                Unpin
-              </ContextMenuItem>
-            ) : (
-              <ContextMenuItem onClick={() => handlePinAgent(agent.id)}>
-                <PinIcon className="size-3.5 mr-1.5" />
-                Pin to top
-              </ContextMenuItem>
-            )}
-          </ContextMenuContent>
-        </ContextMenu>
-        <TooltipContent side="right">{agent.name} (right-click for options)</TooltipContent>
-      </Tooltip>
-    );
-  };
+  const renderAgentButton = (agent: typeof agents[number]) => (
+    <AgentSidebarButton
+      key={agent.id}
+      agent={agent}
+      isActive={activeAgentId === agent.id}
+      isPinned={pins.has(agent.id)}
+      taskCount={taskCounts[agent.id] ?? 0}
+      onClick={() => handleAgentClick(agent.id)}
+      onPin={() => handlePinAgent(agent.id)}
+      onUnpin={() => handleUnpinAgent(agent.id)}
+    />
+  );
 
   return (
     <nav className="flex h-full w-14 flex-col items-center pt-1 pb-2 gap-0.5">

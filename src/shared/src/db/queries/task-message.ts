@@ -1,4 +1,4 @@
-import { eq, and, gt, asc } from "drizzle-orm";
+import { eq, and, gt, asc, count, inArray, notInArray } from "drizzle-orm";
 import { taskMessage, agentTaskQueue } from "../schema";
 import type { Database } from "../index";
 
@@ -72,4 +72,38 @@ export async function listTaskMessagesSince(
 
 export async function deleteTaskMessages(db: Database, taskId: string) {
   await db.delete(taskMessage).where(eq(taskMessage.taskId, taskId));
+}
+
+const HIDDEN_STEP_TYPES = ["status", "log", "tool-result", "text"];
+const CHUNK_SIZE = 50;
+
+export async function countTaskMessagesByTaskIds(
+  db: Database,
+  taskIds: string[],
+  workspaceId: string
+): Promise<Array<{ taskId: string; count: number }>> {
+  if (taskIds.length === 0) return [];
+
+  const results: Array<{ taskId: string; count: number }> = [];
+  for (let i = 0; i < taskIds.length; i += CHUNK_SIZE) {
+    const chunk = taskIds.slice(i, i + CHUNK_SIZE);
+    const rows = await db
+      .select({
+        taskId: taskMessage.taskId,
+        count: count(taskMessage.id),
+      })
+      .from(taskMessage)
+      .innerJoin(agentTaskQueue, eq(taskMessage.taskId, agentTaskQueue.id))
+      .where(
+        and(
+          inArray(taskMessage.taskId, chunk),
+          eq(agentTaskQueue.workspaceId, workspaceId),
+          notInArray(taskMessage.type, HIDDEN_STEP_TYPES)
+        )
+      )
+      .groupBy(taskMessage.taskId);
+    results.push(...rows.map((r) => ({ taskId: r.taskId, count: r.count })));
+  }
+
+  return results;
 }

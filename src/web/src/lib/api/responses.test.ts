@@ -325,10 +325,28 @@ describe("AgentResponse shape", () => {
       maxConcurrentTasks: 3, ...baseFields(),
     });
     expect(Object.keys(res).sort()).toEqual([
-      "created_at", "description", "email_handle", "id", "instructions", "max_concurrent_tasks",
+      "avatar_url", "created_at", "description", "email_handle", "id", "instructions", "max_concurrent_tasks",
       "name", "owner_id", "runtime_config", "runtime_id", "runtime_mode", "status",
       "updated_at", "visibility", "workspace_id",
     ]);
+  });
+
+  it("includes avatar_url as null when not provided", () => {
+    const res = agentToResponse({
+      id: "a1", workspaceId: "w1", runtimeId: "r1", name: "A", description: "d",
+      instructions: "i", runtimeMode: "auto", runtimeConfig: {}, status: "active",
+      maxConcurrentTasks: 1, ...baseFields(),
+    });
+    expect(res.avatar_url).toBeNull();
+  });
+
+  it("includes avatar_url when provided", () => {
+    const res = agentToResponse({
+      id: "a1", workspaceId: "w1", runtimeId: "r1", name: "A", description: "d",
+      instructions: "i", runtimeMode: "auto", runtimeConfig: {}, status: "active",
+      maxConcurrentTasks: 1, avatarUrl: "https://example.com/avatar.png", ...baseFields(),
+    });
+    expect(res.avatar_url).toBe("https://example.com/avatar.png");
   });
 });
 
