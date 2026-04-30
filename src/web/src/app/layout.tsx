@@ -53,6 +53,11 @@ const literata = Literata({
 const SITE_URL = "https://alook.ai";
 
 export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#f5f0e8" },
     { media: "(prefers-color-scheme: dark)", color: "#262320" },
@@ -121,6 +126,8 @@ export default function RootLayout({
       <head>
         <ThemeScript />
         <link rel="manifest" href="/manifest.json" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
