@@ -115,6 +115,7 @@ export async function updateAgent(
     runtimeId?: string | null;
     runtimeConfig?: unknown;
     visibility?: string;
+    avatarUrl?: string | null;
   },
   ownerId?: string
 ) {
