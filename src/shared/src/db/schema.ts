@@ -311,13 +311,13 @@ export const agentTaskQueue = sqliteTable(
     agentId: text("agent_id").notNull(),
     runtimeId: text("runtime_id")
       .notNull()
-      .references(() => agentRuntime.id),
+      .references(() => agentRuntime.id, { onDelete: "cascade" }),
     workspaceId: text("workspace_id")
       .notNull()
-      .references(() => workspace.id),
+      .references(() => workspace.id, { onDelete: "cascade" }),
     conversationId: text("conversation_id")
       .notNull()
-      .references(() => conversation.id),
+      .references(() => conversation.id, { onDelete: "cascade" }),
     prompt: text("prompt").notNull(),
     type: text("type").notNull().default(TASK_TYPES.USER_DM_MESSAGE),
     contextKey: text("context_key"),
