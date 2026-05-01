@@ -23,7 +23,7 @@ export class OpenCodeBackend implements AgentBackend {
 
     const proc = spawn(this.cliPath, args, {
       cwd: options.cwd,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
       env: { ...process.env, ...options.env, OPENCODE_PERMISSION: '{"*":"allow"}' },
     });
 
@@ -50,7 +50,6 @@ export class OpenCodeBackend implements AgentBackend {
     const turnDone = () => {
       if (turnDoneTriggered) return;
       turnDoneTriggered = true;
-      try { proc.stdin?.end(); } catch { /* already closed */ }
       try { proc.kill("SIGTERM"); } catch { /* already dead */ }
     };
 
