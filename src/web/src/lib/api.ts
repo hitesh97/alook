@@ -503,6 +503,12 @@ export const getEmailBody = async (id: string, workspaceId: string): Promise<{ c
 export const deleteEmail = (id: string, workspaceId: string) =>
   apiFetch<void>(`/api/email/${id}${wsQuery(workspaceId)}`, { method: "DELETE" });
 
+export const updateEmailStatus = (id: string, workspaceId: string, status: string) =>
+  apiFetch<Email>(`/api/email/${id}${wsQuery(workspaceId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+
 export const uploadEmailAttachment = async (
   file: File,
   workspaceId: string,

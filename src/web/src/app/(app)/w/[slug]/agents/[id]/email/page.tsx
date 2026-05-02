@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useAgentContext } from "@/contexts/agent-context";
-import { listEmails, getEmailBody, getEmailThread, deleteEmail, sendEmail, listEmailAccounts } from "@/lib/api";
+import { listEmails, getEmailBody, getEmailThread, deleteEmail, sendEmail, listEmailAccounts, updateEmailStatus } from "@/lib/api";
 import type { Email, EmailAttachment, AgentEmailAccount } from "@alook/shared";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -124,6 +124,17 @@ export default function AgentEmailPage() {
       ]);
       setBody(result);
       setThread(threadData);
+
+      const email = emails.find(e => e.id === emailId);
+      if (email && email.status === "unread") {
+        updateEmailStatus(emailId, workspaceId, "read")
+          .then(() => {
+            setEmails(prev => prev.map(e =>
+              e.id === emailId ? { ...e, status: "read" } : e
+            ));
+          })
+          .catch(() => {});
+      }
     } catch {
       setBody({ content: "(body not available)", isHtml: false });
     } finally {
@@ -330,6 +341,11 @@ export default function AgentEmailPage() {
         >
           <Inbox className="size-4 shrink-0" />
           Inbox
+          {folder === "inbox" && emails.filter(e => e.status === "unread").length > 0 && (
+            <span className="ml-auto text-xs bg-blue-500 text-white rounded-full px-1.5 py-0.5 leading-none min-w-[1.25rem] text-center">
+              {emails.filter(e => e.status === "unread").length}
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -397,14 +413,23 @@ export default function AgentEmailPage() {
             )}
           >
             <div className="flex items-center justify-between gap-2 mb-0.5">
-              <p className="text-sm font-medium truncate flex items-center gap-1.5">
+              <p className={cn(
+                "text-sm truncate flex items-center gap-1.5",
+                email.status === "unread" ? "font-semibold" : "font-medium text-muted-foreground"
+              )}>
+                {email.status === "unread" && (
+                  <span className="size-1.5 rounded-full bg-blue-500 shrink-0" />
+                )}
                 {folder === "sent" ? email.to_email : email.from_email}
               </p>
               <span className="text-xs text-muted-foreground shrink-0">
                 {relativeTime(email.created_at)}
               </span>
             </div>
-            <p className="text-[13px] truncate text-muted-foreground">
+            <p className={cn(
+              "text-[13px] truncate",
+              email.status === "unread" ? "text-foreground" : "text-muted-foreground"
+            )}>
               {email.subject || "(no subject)"}
             </p>
           </button>
@@ -565,17 +590,21 @@ export default function AgentEmailPage() {
                   {selected.attachments.length} attachment{selected.attachments.length > 1 ? "s" : ""}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {selected.attachments.map((att) => (
-                    <div
+                  {selected.attachments.map((att, i) => (
+                    <a
                       key={att.key}
-                      className="flex items-center gap-1.5 rounded-md border border-border/50 bg-muted/50 px-2.5 py-1.5 text-xs"
+                      href={`/api/email/${selected.id}/attachment/${i}?workspace_id=${workspaceId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={att.filename}
+                      className="flex items-center gap-1.5 rounded-md border border-border/50 bg-muted/50 px-2.5 py-1.5 text-xs hover:bg-muted transition-colors cursor-pointer"
                     >
                       <FileIcon className="size-3 text-muted-foreground shrink-0" />
                       <span className="truncate max-w-45">{att.filename}</span>
                       <span className="text-muted-foreground shrink-0">
                         {att.size < 1024 ? `${att.size} B` : att.size < 1024 * 1024 ? `${(att.size / 1024).toFixed(1)} KB` : `${(att.size / (1024 * 1024)).toFixed(1)} MB`}
                       </span>
-                    </div>
+                    </a>
                   ))}
                 </div>
               </div>
@@ -689,6 +718,11 @@ export default function AgentEmailPage() {
                 )}
               >
                 {f.label}
+                {f.id === "inbox" && folder === "inbox" && emails.filter(e => e.status === "unread").length > 0 && (
+                  <span className="ml-0.5 text-[10px] bg-blue-500 text-white rounded-full px-1 leading-none min-w-[1rem] text-center">
+                    {emails.filter(e => e.status === "unread").length}
+                  </span>
+                )}
               </button>
             ))}
           </div>

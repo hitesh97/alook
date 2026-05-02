@@ -165,6 +165,15 @@ export class ImapPollerDO extends DurableObject<EmailEnv> {
           }
         }
 
+        const attachmentsMeta = (parsed.attachments || [])
+          .filter(att => att.disposition === "attachment" || att.filename)
+          .map((att, i) => ({
+            key: `inline:${i}`,
+            filename: att.filename || `attachment-${i}`,
+            size: att.content instanceof ArrayBuffer ? att.content.byteLength : typeof att.content === "string" ? att.content.length : 0,
+            contentType: att.mimeType || "application/octet-stream",
+          }))
+
         await this.notifyWeb({
           agentId: account.agentId,
           workspaceId: account.workspaceId,
@@ -177,6 +186,7 @@ export class ImapPollerDO extends DurableObject<EmailEnv> {
           inReplyTo: parsed.inReplyTo || "",
           references: parsed.references || "",
           meetingInfo,
+          ...(attachmentsMeta.length > 0 ? { attachments: JSON.stringify(attachmentsMeta) } : {}),
         })
 
         maxUid = Math.max(maxUid, uid)
