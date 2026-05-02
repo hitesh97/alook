@@ -815,16 +815,34 @@ export interface AgentPin {
   id: string;
   agent_id: string;
   created_at: string;
+  position: number;
+}
+
+export interface SidebarOrder {
+  agent_id: string;
+  position: number;
 }
 
 export const listAgentPins = (workspaceId: string) =>
-  apiFetch<AgentPin[]>(`/api/agents/pins${wsQuery(workspaceId)}`);
+  apiFetch<{ pins: AgentPin[]; sidebar_order: SidebarOrder[] }>(`/api/agents/pins${wsQuery(workspaceId)}`);
 
 export const pinAgent = (workspaceId: string, agentId: string) =>
   apiFetch<{ pinned: boolean }>(`/api/agents/${agentId}/pin${wsQuery(workspaceId)}`, { method: "POST" });
 
 export const unpinAgent = (workspaceId: string, agentId: string) =>
   apiFetch<void>(`/api/agents/${agentId}/pin${wsQuery(workspaceId)}`, { method: "DELETE" });
+
+export const reorderAgentPins = (workspaceId: string, orderedAgentIds: string[]) =>
+  apiFetch<void>(`/api/agents/pins/reorder${wsQuery(workspaceId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ ordered_agent_ids: orderedAgentIds }),
+  });
+
+export const reorderUnpinnedAgents = (workspaceId: string, orderedAgentIds: string[]) =>
+  apiFetch<void>(`/api/agents/sidebar/reorder${wsQuery(workspaceId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ ordered_agent_ids: orderedAgentIds }),
+  });
 
 // Workspace file browsing
 export const requestWorkspaceBrowse = (
