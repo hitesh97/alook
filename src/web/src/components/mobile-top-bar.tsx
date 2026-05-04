@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
-import { GitBranch } from "lucide-react";
+import { GitBranch, Home } from "lucide-react";
 import { useSidebarTrigger } from "@/components/workspace-shell";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -17,6 +17,7 @@ export function MobileTopBar() {
   const { slug } = useWorkspace();
   const { agents, pins, unpinnedOrder, runtimes, loading } = useAgentContext();
 
+  const isHomeActive = pathname === `/w/${slug}/home`;
   const isTracesActive = pathname.includes("/traces");
   const activeAgentMatch = pathname.match(/^\/w\/[^/]+\/agents\/([^/]+)/);
   const activeAgentId = activeAgentMatch?.[1] ?? null;
@@ -57,6 +58,19 @@ export function MobileTopBar() {
           <Logo size="sm" iconOnly />
         </div>
       )}
+
+      <button
+        onClick={() => router.push(`/w/${slug}/home`)}
+        aria-label="Home"
+        className={cn(
+          "shrink-0 p-1 rounded-md transition-colors",
+          isHomeActive
+            ? "text-foreground bg-muted"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        <Home className="size-4" />
+      </button>
 
       <button
         onClick={() => router.push(`/w/${slug}/traces`)}

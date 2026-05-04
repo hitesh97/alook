@@ -32,6 +32,7 @@ export function prepare(
     ALOOK_TASK_ID: task.id,
     ALOOK_CONVERSATION_ID: task.conversationId,
     ALOOK_TRACE_ID: task.traceId ?? "",
+    ALOOK_CHANNEL: task.channel ?? "default",
     ALOOK_HEALTH_PORT: process.env.ALOOK_HEALTH_PORT || "19514",
   };
 

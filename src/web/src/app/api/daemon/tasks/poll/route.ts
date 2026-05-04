@@ -79,6 +79,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   // Per-request caches: avoid duplicate DB reads when multiple tasks share the same owner/user
   const memberCache = new Map<string, { globalInstruction: string } | null>();
   const userCache = new Map<string, { name: string; email: string } | null>();
+  const convoCache = new Map<string, Awaited<ReturnType<typeof queries.conversation.getConversation>> | null>();
   for (const task of claimed) {
     if (task.type === "kill_task") {
       tasks.push({ ...taskToResponse(task), agent: null, sender: null });
@@ -121,23 +122,27 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       ownerName = userCache.get(agent.ownerId)?.name ?? null;
     }
 
-    // Resolve sender identity for DM tasks only
+    // Fetch conversation for channel (all task types) and sender (DM only)
+    let convo = convoCache.get(task.conversationId) ?? null;
+    if (task.conversationId && !convoCache.has(task.conversationId)) {
+      convo = await queries.conversation.getConversation(db, task.conversationId, task.workspaceId);
+      convoCache.set(task.conversationId, convo);
+    }
+    const taskChannel = convo?.channel ?? "default";
+
     let sender: { name: string; email: string; is_owner: boolean } | null = null;
-    if (task.type === "user_dm_message" && task.conversationId) {
-      const convo = await queries.conversation.getConversation(db, task.conversationId, task.workspaceId);
-      if (convo?.userId) {
-        if (!userCache.has(convo.userId)) {
-          const u = await queries.user.getUser(db, convo.userId);
-          userCache.set(convo.userId, u ? { name: u.name, email: u.email } : null);
-        }
-        const cachedUser = userCache.get(convo.userId);
-        if (cachedUser) {
-          sender = {
-            name: cachedUser.name,
-            email: cachedUser.email,
-            is_owner: convo.userId === agent?.ownerId,
-          };
-        }
+    if (task.type === "user_dm_message" && convo?.userId) {
+      if (!userCache.has(convo.userId)) {
+        const u = await queries.user.getUser(db, convo.userId);
+        userCache.set(convo.userId, u ? { name: u.name, email: u.email } : null);
+      }
+      const cachedUser = userCache.get(convo.userId);
+      if (cachedUser) {
+        sender = {
+          name: cachedUser.name,
+          email: cachedUser.email,
+          is_owner: convo.userId === agent?.ownerId,
+        };
       }
     }
 
@@ -157,6 +162,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
 
     tasks.push({
       ...taskToResponse(task),
+      channel: taskChannel,
       sender,
       agent: agent
         ? {

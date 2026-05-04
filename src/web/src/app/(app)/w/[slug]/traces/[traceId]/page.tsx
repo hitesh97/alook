@@ -165,13 +165,17 @@ export default function TraceDetailPage() {
   const traceId = params.traceId as string;
 
   const [tasks, setTasks] = useState<TraceTask[]>([]);
+  const [channel, setChannel] = useState("default");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     getTrace(traceId, workspaceId)
-      .then((data) => setTasks(data.tasks))
-      .catch(() => {})
+      .then((data) => {
+        setTasks(data.tasks);
+        setChannel(data.channel);
+      })
+      .catch(() => { })
       .finally(() => setLoading(false));
   }, [traceId, workspaceId]);
 
@@ -186,8 +190,8 @@ export default function TraceDetailPage() {
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="size-3.5" />
-          Traces
         </Link>
+        <span className="text-xs text-muted-foreground">#{channel}</span>
       </div>
 
       <div className="flex-1 overflow-y-auto thin-scrollbar">

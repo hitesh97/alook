@@ -70,12 +70,21 @@ export async function POST(req: NextRequest) {
         }
       }
     } else {
+      let inheritedChannel: string | undefined;
+      if (body.sourceTaskId) {
+        const parentTask = await queries.task.getTask(db, body.sourceTaskId, body.workspaceId);
+        if (parentTask) {
+          const parentConv = await queries.conversation.getConversation(db, parentTask.conversationId, body.workspaceId);
+          if (parentConv) inheritedChannel = parentConv.channel;
+        }
+      }
       const conv = await queries.conversation.createConversation(db, {
         workspaceId: agent.workspaceId,
         agentId: agent.id,
         userId: agent.ownerId,
         title: `Email: ${body.subject}`.slice(0, 50),
         type: TASK_TYPES.EMAIL_NOTIFICATION,
+        ...(inheritedChannel && inheritedChannel !== "default" ? { channel: inheritedChannel } : {}),
       })
       conversationId = conv.id;
 

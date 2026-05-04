@@ -1,5 +1,6 @@
-import { eq, and, desc, asc, inArray, notInArray, ne, count, lt, or, sql } from "drizzle-orm";
-import { agentTaskQueue, taskMessage } from "../schema";
+import { eq, and, desc, asc, inArray, notInArray, ne, count, lt, or, sql, exists } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
+import { agentTaskQueue, taskMessage, conversation } from "../schema";
 import type { Database } from "../index";
 import { ClaimedTaskRowSchema } from "../../schemas";
 import { TASK_TYPES } from "../../constants";
@@ -653,7 +654,7 @@ export async function listTaskHistory(
 export async function listTraces(
   db: Database,
   workspaceId: string,
-  opts?: { status?: string; limit?: number; before?: string }
+  opts?: { status?: string; limit?: number; before?: string; multiAgent?: boolean; agentId?: string; channel?: string }
 ) {
   const limit = opts?.limit ?? 30;
   // When filtering by computed status, overfetch roots to compensate
@@ -668,6 +669,28 @@ export async function listTraces(
   if (opts?.before) {
     conditions.push(lt(agentTaskQueue.createdAt, opts.before));
   }
+  if (opts?.agentId) {
+    conditions.push(eq(agentTaskQueue.agentId, opts.agentId));
+  }
+  if (opts?.channel) {
+    conditions.push(eq(conversation.channel, opts.channel));
+  }
+  if (opts?.multiAgent) {
+    const helperTask = alias(agentTaskQueue, "helper_task");
+    conditions.push(
+      exists(
+        db.select()
+          .from(helperTask)
+          .where(
+            and(
+              eq(helperTask.traceId, agentTaskQueue.traceId),
+              ne(helperTask.agentId, agentTaskQueue.agentId),
+              ne(helperTask.type, TASK_TYPES.KILL_TASK),
+            )
+          )
+      )
+    );
+  }
 
   const rootTasks = await db
     .select({
@@ -676,8 +699,10 @@ export async function listTraces(
       agentId: agentTaskQueue.agentId,
       prompt: agentTaskQueue.prompt,
       createdAt: agentTaskQueue.createdAt,
+      channel: conversation.channel,
     })
     .from(agentTaskQueue)
+    .leftJoin(conversation, eq(agentTaskQueue.conversationId, conversation.id))
     .where(and(...conditions))
     .orderBy(desc(agentTaskQueue.createdAt))
     .limit(rootFetchLimit + 1);
@@ -721,6 +746,7 @@ export async function listTraces(
     taskCount: number;
     startedAt: string;
     completedAt: string | null;
+    channel: string;
   }[] = [];
 
   for (const root of roots) {
@@ -750,6 +776,7 @@ export async function listTraces(
       taskCount: tasks.length,
       startedAt: root.createdAt,
       completedAt,
+      channel: root.channel ?? "default",
     });
   }
 

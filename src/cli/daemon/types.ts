@@ -22,6 +22,7 @@ export interface Task {
   createdAt: string;
   traceId: string | null;
   parentTaskId: string | null;
+  channel: string | null;
 }
 
 export interface Attachment {
@@ -156,5 +157,6 @@ export function fromApiTask(api: import("@alook/shared").TaskApi): Task {
     createdAt: api.created_at,
     traceId: api.trace_id ?? null,
     parentTaskId: api.parent_task_id ?? null,
+    channel: api.channel ?? null,
   };
 }

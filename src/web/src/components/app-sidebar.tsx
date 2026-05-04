@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import type { Agent } from "@alook/shared";
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/utils";
-import { Monitor, SunMoon, Plus, CalendarDays, GitBranch, Settings, PinIcon, PinOffIcon, ArrowLeftRight } from "lucide-react";
+import { Monitor, SunMoon, Plus, CalendarDays, GitBranch, Settings, PinIcon, PinOffIcon, ArrowLeftRight, Home } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useTheme } from "next-themes";
@@ -190,34 +190,77 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
 
   const hasOnlineRuntime = runtimes.some((r) => r.status === "online");
 
-  const renderAgentButton = (agent: typeof agents[number]) => (
-    <AgentSidebarButton
-      key={agent.id}
-      agent={agent}
-      isActive={activeAgentId === agent.id}
-      isPinned={pins.has(agent.id)}
-      isOnline={hasOnlineRuntime}
-      taskCount={taskCounts[agent.id] ?? 0}
-      onClick={() => handleAgentClick(agent.id)}
-      onPin={() => handlePinAgent(agent.id)}
-      onUnpin={() => handleUnpinAgent(agent.id)}
-    />
+  const [wiggling, setWiggling] = useState(false);
+  const wiggleRef = useRef(false);
+  const wiggleTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    return () => {
+      if (wiggleTimerRef.current) clearTimeout(wiggleTimerRef.current);
+    };
+  }, []);
+
+  const triggerWiggle = useCallback(() => {
+    if (wiggleRef.current) return;
+    wiggleRef.current = true;
+    setWiggling(true);
+    const count = pinned.length + unpinned.length;
+    const total = Math.max(0, count - 1) * 60 + 550;
+    wiggleTimerRef.current = setTimeout(() => {
+      wiggleRef.current = false;
+      setWiggling(false);
+    }, total);
+  }, [pinned.length, unpinned.length]);
+
+  const renderAgentButton = (agent: typeof agents[number], animIndex: number) => (
+    <div
+      className={cn(wiggling && "sidebar-agent-pop")}
+      style={wiggling ? { animationDelay: `${animIndex * 60}ms` } : undefined}
+    >
+      <AgentSidebarButton
+        agent={agent}
+        isActive={activeAgentId === agent.id}
+        isPinned={pins.has(agent.id)}
+        isOnline={hasOnlineRuntime}
+        taskCount={taskCounts[agent.id] ?? 0}
+        onClick={() => handleAgentClick(agent.id)}
+        onPin={() => handlePinAgent(agent.id)}
+        onUnpin={() => handleUnpinAgent(agent.id)}
+      />
+    </div>
   );
 
   return (
     <nav className="flex h-full w-14 flex-col items-center pt-1 pb-2 gap-0.5">
-      {/* Top — logo as Home link */}
+      {/* Top — logo (easter egg: click to wake agents) */}
       <div className="pb-1.5 mb-1">
         <div
-          className="flex shrink-0 items-center justify-center size-8 cursor-pointer [&>button]:pointer-events-none"
-          onClick={() => { router.push(`${prefix}/home`); onNavigate?.(); }}
+          className="flex shrink-0 items-center justify-center size-8 [&>button]:pointer-events-none cursor-pointer active:scale-90 transition-transform"
+          onClick={triggerWiggle}
         >
           <Logo size="sm" iconOnly />
         </div>
       </div>
 
-      {/* Threads */}
-      <div className="pb-1.5 border-b border-border/50 mb-1">
+      {/* Home & Threads */}
+      <div className="flex flex-col items-center gap-1.5 pb-1.5 border-b border-border/50 mb-1">
+        <Tooltip>
+          <TooltipTrigger render={
+            <button
+              type="button"
+              onClick={() => { router.push(`${prefix}/home`); onNavigate?.(); }}
+              className={cn(
+                "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
+                "text-muted-foreground hover:text-foreground hover:bg-accent",
+                isHome && "bg-accent text-foreground"
+              )}
+            />
+          }>
+            <Home className="size-4" />
+          </TooltipTrigger>
+          <TooltipContent side="right">Home</TooltipContent>
+        </Tooltip>
+
         <Tooltip>
           <TooltipTrigger render={
             <button
@@ -225,8 +268,8 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
               onClick={() => { router.push(`${prefix}/traces`); onNavigate?.(); }}
               className={cn(
                 "flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
-                "bg-primary text-primary-foreground hover:bg-primary/80",
-                isTraces && "ring-2 ring-primary/50"
+                "text-muted-foreground hover:text-foreground hover:bg-accent",
+                isTraces && "bg-accent text-foreground"
               )}
             />
           }>
@@ -244,9 +287,9 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <>
             <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleDragEnd}>
               <SortableContext items={pinned.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-                {pinned.map((agent) => (
+                {pinned.map((agent, i) => (
                   <SortableAgentButton key={agent.id} id={agent.id}>
-                    {renderAgentButton(agent)}
+                    {renderAgentButton(agent, i)}
                   </SortableAgentButton>
                 ))}
               </SortableContext>
@@ -256,9 +299,9 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
             )}
             <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis]} onDragEnd={handleUnpinnedDragEnd}>
               <SortableContext items={unpinned.map((a) => a.id)} strategy={verticalListSortingStrategy}>
-                {unpinned.map((agent) => (
+                {unpinned.map((agent, i) => (
                   <SortableAgentButton key={agent.id} id={agent.id}>
-                    {renderAgentButton(agent)}
+                    {renderAgentButton(agent, pinned.length + i)}
                   </SortableAgentButton>
                 ))}
               </SortableContext>

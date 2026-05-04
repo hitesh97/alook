@@ -21,6 +21,13 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
   const tasks = await queries.task.getTraceTree(db, traceId, ws.workspaceId);
   if (tasks.length === 0) return writeError("trace not found", 404);
 
+  const rootTask = tasks.find(t => !t.parentTaskId);
+  let channel = "default";
+  if (rootTask) {
+    const conv = await queries.conversation.getConversation(db, rootTask.conversationId, ws.workspaceId);
+    if (conv) channel = conv.channel;
+  }
+
   const agents = await queries.agent.listAgents(db, ws.workspaceId, ctx.userId);
   const agentMap = new Map(agents.map(a => [a.id, { name: a.name, email_handle: a.emailHandle, avatarUrl: a.avatarUrl }]));
 
@@ -37,5 +44,5 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
     completed_at: t.completedAt,
   }));
 
-  return writeJSON({ trace_id: traceId, tasks: traceTasks });
+  return writeJSON({ trace_id: traceId, channel, tasks: traceTasks });
 });

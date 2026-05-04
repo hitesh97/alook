@@ -73,7 +73,10 @@ function MentionHighlight(props: Record<string, unknown> & { children?: React.Re
   }
   return <span className="mention-highlight">{children}</span>;
 }
-const MENTION_COMPONENTS = { mention: MentionHighlight };
+const MENTION_COMPONENTS: Record<string, React.ComponentType<Record<string, unknown> & { children?: React.ReactNode }>> = {
+  mention: MentionHighlight,
+  p: ({ children, node: _node, ...rest }: Record<string, unknown> & { children?: React.ReactNode }) => <div data-md-p="" {...rest}>{children}</div>,
+};
 
 /** Sort messages by (created_at, id) ascending — guarantees chronological order. */
 export function sortMessages(msgs: Message[]): Message[] {

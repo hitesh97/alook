@@ -90,6 +90,7 @@ export const TaskApiBaseSchema = z.object({
   context: z.unknown().nullable().optional(),
   trace_id: z.string().nullable().optional(),
   parent_task_id: z.string().nullable().optional(),
+  channel: z.string().nullable().optional(),
 });
 export type TaskApiBase = z.infer<typeof TaskApiBaseSchema>;
 

@@ -19,7 +19,10 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
   const limitParam = req.nextUrl.searchParams.get("limit");
   const limit = limitParam ? Math.min(Math.max(parseInt(limitParam, 10) || 30, 1), 100) : undefined;
 
-  const result = await queries.task.listTraces(db, ws.workspaceId, { status, limit, before });
+  const multiAgent = req.nextUrl.searchParams.get("multiAgent") === "true";
+  const agentId = req.nextUrl.searchParams.get("agentId") ?? undefined;
+  const channel = req.nextUrl.searchParams.get("channel") ?? undefined;
+  const result = await queries.task.listTraces(db, ws.workspaceId, { status, limit, before, multiAgent, agentId, channel });
 
   const agents = await queries.agent.listAgents(db, ws.workspaceId, ctx.userId);
   const agentMap = new Map(agents.map(a => [a.id, { name: a.name, avatarUrl: a.avatarUrl }]));
@@ -34,6 +37,7 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
     task_count: t.taskCount,
     started_at: t.startedAt,
     completed_at: t.completedAt,
+    channel: t.channel,
   }));
 
   return writeJSON({ traces, has_more: result.hasMore });

@@ -4,7 +4,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useWorkspace } from "@/contexts/workspace-context";
-import { listTraces, type TraceListItem } from "@/lib/api";
+import { useChannel } from "@/contexts/channel-context";
+import { listTraces, listAgents, type TraceListItem } from "@/lib/api";
+import type { Agent } from "@alook/shared";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -108,6 +110,8 @@ function TraceRow({ trace, slug }: { trace: TraceListItem; slug: string }) {
                 <span className="text-muted-foreground/40">&middot;</span>
               </>
             )}
+            <span className="text-xs text-muted-foreground">#{trace.channel}</span>
+            <span className="text-muted-foreground/40">&middot;</span>
             <StatusDot status={trace.status} />
             <span className="text-xs text-muted-foreground">{statusLabel}</span>
             {duration && (
@@ -155,16 +159,24 @@ export default function TracesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { slug, workspaceId } = useWorkspace();
+  const { channels } = useChannel();
 
   const [traces, setTraces] = useState<TraceListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [agents, setAgents] = useState<Agent[]>([]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isFetchingRef = useRef(false);
 
   const statusFilter = searchParams.get("status") ?? "";
+  const agentFilter = searchParams.get("agentId") ?? "";
+  const channelFilter = searchParams.get("channel") ?? "";
+
+  useEffect(() => {
+    listAgents(workspaceId).then(setAgents).catch(() => {});
+  }, [workspaceId]);
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -172,6 +184,9 @@ export default function TracesPage() {
       const result = await listTraces(workspaceId, {
         limit: TRACE_LIMIT,
         status: statusFilter || undefined,
+        multiAgent: true,
+        agentId: agentFilter || undefined,
+        channel: channelFilter || undefined,
       });
       const seen = new Set<string>();
       const deduped = result.traces.filter((t) => {
@@ -186,7 +201,7 @@ export default function TracesPage() {
     } finally {
       setLoading(false);
     }
-  }, [workspaceId, statusFilter]);
+  }, [workspaceId, statusFilter, agentFilter, channelFilter]);
 
   useEffect(() => {
     loadInitial();
@@ -202,6 +217,9 @@ export default function TracesPage() {
         limit: TRACE_LIMIT,
         before: oldest.started_at,
         status: statusFilter || undefined,
+        multiAgent: true,
+        agentId: agentFilter || undefined,
+        channel: channelFilter || undefined,
       });
       if (result.traces.length === 0) {
         setHasMore(false);
@@ -217,7 +235,7 @@ export default function TracesPage() {
       isFetchingRef.current = false;
       setLoadingMore(false);
     }
-  }, [workspaceId, traces, hasMore, statusFilter]);
+  }, [workspaceId, traces, hasMore, statusFilter, agentFilter, channelFilter]);
 
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -229,12 +247,12 @@ export default function TracesPage() {
   }, [loadOlderTraces, loadingMore, hasMore]);
 
   const updateFilter = useCallback(
-    (value: string) => {
+    (key: string, value: string) => {
       const newParams = new URLSearchParams(searchParams.toString());
       if (value) {
-        newParams.set("status", value);
+        newParams.set(key, value);
       } else {
-        newParams.delete("status");
+        newParams.delete(key);
       }
       const pathname = `/w/${slug}/traces`;
       const qs = newParams.toString();
@@ -246,7 +264,7 @@ export default function TracesPage() {
   return (
     <div className="flex flex-col h-full">
       <div className="sticky top-0 z-10 flex items-center gap-2 px-4 py-2.5">
-        <Select value={statusFilter} onValueChange={(v) => updateFilter(v ?? "")}>
+        <Select value={statusFilter} onValueChange={(v) => updateFilter("status", v ?? "")}>
           <SelectTrigger className="w-35 border-none bg-transparent shadow-none text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
             <SelectValue placeholder="Status: All" />
           </SelectTrigger>
@@ -254,6 +272,37 @@ export default function TracesPage() {
             {STATUS_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label === "All" ? "Status: All" : opt.label}
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+
+        <Select value={agentFilter} onValueChange={(v) => updateFilter("agentId", v ?? "")}>
+          <SelectTrigger className="w-40 border-none bg-transparent shadow-none text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            {agentFilter ? agents.find((a) => a.id === agentFilter)?.name ?? agentFilter : "Agent: All"}
+          </SelectTrigger>
+          <SelectPopup>
+            <SelectItem value="">Agent: All</SelectItem>
+            {agents.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                <span className="flex items-center gap-1.5">
+                  <AgentAvatar name={a.name} avatarUrl={a.avatar_url} />
+                  {a.name}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectPopup>
+        </Select>
+
+        <Select value={channelFilter} onValueChange={(v) => updateFilter("channel", v ?? "")}>
+          <SelectTrigger className="w-40 border-none bg-transparent shadow-none text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+            <SelectValue placeholder="Channel: All" />
+          </SelectTrigger>
+          <SelectPopup>
+            <SelectItem value="">Channel: All</SelectItem>
+            {channels.map((ch) => (
+              <SelectItem key={ch.id} value={ch.name}>
+                #{ch.name}
               </SelectItem>
             ))}
           </SelectPopup>
@@ -269,6 +318,8 @@ export default function TracesPage() {
         </button>
       </div>
 
+      <p className="px-4 pb-1 text-xs text-muted-foreground/50">Showing tasks that involve multiple agents</p>
+
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto thin-scrollbar"
@@ -283,8 +334,11 @@ export default function TracesPage() {
         ) : traces.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
             <GitBranch className="size-8 text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">No traces yet</p>
-            {statusFilter && (
+            <p className="text-sm text-muted-foreground">No threads yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Only tasks involving multiple agents appear here.
+            </p>
+            {(statusFilter || agentFilter || channelFilter) && (
               <p className="text-xs text-muted-foreground/60 mt-1">
                 Try changing your filter
               </p>
