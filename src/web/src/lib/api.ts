@@ -429,6 +429,21 @@ export interface ActiveTask {
 export const listAgentActiveTasks = (agentId: string, workspaceId: string) =>
   apiFetch<{ tasks: ActiveTask[] }>(`/api/agents/${agentId}/active-tasks${wsQuery(workspaceId)}`);
 
+export interface WorkspaceActiveTask {
+  id: string;
+  agent_id: string;
+  agent: { name: string; avatarUrl: string | null } | null;
+  prompt: string;
+  status: string;
+  type: string;
+  conversation_id: string;
+  channel: string;
+  created_at: string;
+}
+
+export const listWorkspaceActiveTasks = (workspaceId: string) =>
+  apiFetch<{ tasks: WorkspaceActiveTask[] }>(`/api/agents/active-tasks${wsQuery(workspaceId)}`);
+
 // Activity
 export interface ActivityTask {
   id: string;

@@ -1325,11 +1325,9 @@
 
 /* ── Sidebar easter egg: logo click → agents pop ── */
 @keyframes sidebar-agent-pop {
-  0%   { transform: scale(1) translateY(0) rotate(0); }
-  25%  { transform: scale(1.15) translateY(-6px) rotate(-5deg); }
-  50%  { transform: scale(0.92) translateY(1px) rotate(3deg); }
-  75%  { transform: scale(1.05) translateY(-2px) rotate(-1deg); }
-  100% { transform: scale(1) translateY(0) rotate(0); }
+  0%   { transform: translateX(0) scale(1) rotate(0); }
+  28%  { transform: translateX(25px) scale(1.08) rotate(-6deg); }
+  100% { transform: translateX(0) scale(1) rotate(0); }
 }
 .sidebar-agent-pop {
   animation: sidebar-agent-pop 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;

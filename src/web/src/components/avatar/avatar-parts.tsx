@@ -297,9 +297,11 @@ export function AvatarRenderer({ config, size = 200, className }: AvatarRenderer
       style={{ display: "block" }}
     >
       <rect x="0" y="0" width="200" height="200" rx="56" fill={bgColor} />
-      <g data-avatar-shape="">{sh.render()}</g>
-      {ey && <g transform={`translate(${cx}, ${eyeY})`}><g data-avatar-eyes="">{ey.render(eyeDx)}</g></g>}
-      {no && <g transform={`translate(${cx}, ${cy + 5})`}><g data-avatar-nose="">{no.render()}</g></g>}
+      <g transform="translate(100,100) scale(0.85) translate(-100,-100)">
+        <g data-avatar-shape="">{sh.render()}</g>
+        {ey && <g transform={`translate(${cx}, ${eyeY})`}><g data-avatar-eyes="">{ey.render(eyeDx)}</g></g>}
+        {no && <g transform={`translate(${cx}, ${cy + 5})`}><g data-avatar-nose="">{no.render()}</g></g>}
+      </g>
     </svg>
   );
 }

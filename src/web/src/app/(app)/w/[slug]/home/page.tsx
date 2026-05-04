@@ -41,6 +41,7 @@ import { ApiError } from "@/lib/errors";
 import { AgentNode, type AgentNodeData } from "@/components/canvas/agent-node";
 import { LinkEdge } from "@/components/canvas/link-edge";
 import { LinkSidecar } from "@/components/canvas/link-sidecar";
+import { ActiveTasksFloat } from "@/components/canvas/active-tasks-float";
 import { getAutoLayout } from "@/components/canvas/auto-layout";
 
 const nodeTypes = { agent: AgentNode };
@@ -411,6 +412,8 @@ function AgentCanvas() {
         onSave={handleSidecarSave}
         onDelete={handleSidecarDelete}
       />
+
+      <ActiveTasksFloat />
     </div>
   );
 }

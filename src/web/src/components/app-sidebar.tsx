@@ -231,7 +231,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   );
 
   return (
-    <nav className="flex h-full w-14 flex-col items-center pt-1 pb-2 gap-0.5">
+    <nav className={cn("flex h-full w-14 flex-col items-center pt-1 pb-2 gap-0.5", wiggling && "relative z-10")}>
       {/* Top — logo (easter egg: click to wake agents) */}
       <div className="pb-1.5 mb-1">
         <div
@@ -280,7 +280,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
       </div>
 
       {/* Agent avatars */}
-      <div className="flex flex-1 w-full flex-col items-center gap-1.5 overflow-y-auto py-1 scrollbar-none">
+      <div className={cn("flex flex-1 w-full flex-col items-center gap-1.5 py-1 scrollbar-none", wiggling ? "overflow-visible" : "overflow-y-auto")}>
         {loading ? (
           <Skeleton className="size-10 rounded-xl" />
         ) : (

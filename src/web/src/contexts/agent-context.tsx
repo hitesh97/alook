@@ -18,12 +18,14 @@ import {
   createMachineToken,
   deleteMachine,
   listAgentActiveTaskCounts,
+  listWorkspaceActiveTasks,
   listAgentPins,
   pinAgent as pinAgentApi,
   unpinAgent as unpinAgentApi,
   reorderAgentPins,
   reorderUnpinnedAgents,
   type AgentPin,
+  type WorkspaceActiveTask,
 } from "@/lib/api";
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import { toast } from "sonner";
@@ -44,6 +46,7 @@ interface AgentContextValue {
   runtimes: Runtime[];
   loading: boolean;
   activeTaskCounts: Record<string, number>;
+  activeTaskDetails: WorkspaceActiveTask[];
   pins: Map<string, { created_at: string; position: number }>;
   reload: () => Promise<void>;
   subscribeWs: (fn: WsSubscriber) => () => void;
@@ -79,6 +82,8 @@ export function AgentProvider({
   const [runtimes, setRuntimes] = useState<Runtime[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTaskCounts, setActiveTaskCounts] = useState<Record<string, number>>({});
+  const [activeTaskDetails, setActiveTaskDetails] = useState<WorkspaceActiveTask[]>([]);
+  const hasActiveTasksRef = useRef(false);
   const [pins, setPins] = useState<Map<string, { created_at: string; position: number }>>(new Map());
   const [unpinnedOrder, setUnpinnedOrder] = useState<Map<string, number>>(new Map());
   const loadedRef = useRef(false);
@@ -90,12 +95,39 @@ export function AgentProvider({
     return () => { subscribersRef.current.delete(fn); };
   }, []);
 
+  const isFetchingRef = useRef(false);
+
   const fetchTaskCounts = useCallback(async () => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
-      const res = await listAgentActiveTaskCounts(workspaceId);
-      if (taskCountsMountedRef.current) setActiveTaskCounts(res.counts);
+      if (hasActiveTasksRef.current) {
+        const res = await listWorkspaceActiveTasks(workspaceId);
+        if (!taskCountsMountedRef.current) return;
+        setActiveTaskDetails(res.tasks);
+        const counts: Record<string, number> = {};
+        for (const t of res.tasks) {
+          counts[t.agent_id] = (counts[t.agent_id] ?? 0) + 1;
+        }
+        setActiveTaskCounts(counts);
+        hasActiveTasksRef.current = res.tasks.length > 0;
+      } else {
+        const res = await listAgentActiveTaskCounts(workspaceId);
+        if (!taskCountsMountedRef.current) return;
+        setActiveTaskCounts(res.counts);
+        const hasAny = Object.values(res.counts).some((n) => n > 0);
+        if (hasAny) {
+          hasActiveTasksRef.current = true;
+          const detailed = await listWorkspaceActiveTasks(workspaceId);
+          if (taskCountsMountedRef.current) setActiveTaskDetails(detailed.tasks);
+        } else {
+          setActiveTaskDetails([]);
+        }
+      }
     } catch {
       // ignore
+    } finally {
+      isFetchingRef.current = false;
     }
   }, [workspaceId]);
 
@@ -325,6 +357,7 @@ export function AgentProvider({
         runtimes,
         loading,
         activeTaskCounts,
+        activeTaskDetails,
         pins,
         reload,
         subscribeWs,

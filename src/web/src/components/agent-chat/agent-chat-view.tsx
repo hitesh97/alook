@@ -507,6 +507,7 @@ export function AgentChatView() {
     loadingMoreRef.current = true;
     setLoadingMore(true);
     const el = scrollRef.current;
+    const wasOverflowing = el ? el.scrollHeight > el.clientHeight : false;
     const prevScrollHeight = el?.scrollHeight ?? 0;
 
     try {
@@ -578,9 +579,15 @@ export function AgentChatView() {
         });
       }
 
+      flushSync(() => setLoadingMore(false));
+
       if (el) {
-        const newScrollHeight = el.scrollHeight;
-        el.scrollTop = newScrollHeight - prevScrollHeight;
+        if (wasOverflowing) {
+          const newScrollHeight = el.scrollHeight;
+          el.scrollTop = newScrollHeight - prevScrollHeight;
+        } else {
+          el.scrollTop = el.scrollHeight;
+        }
       }
     } catch {
       toast.error("Failed to load older messages");
@@ -1103,7 +1110,7 @@ export function AgentChatView() {
     <>
       {/* Messages */}
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar"
+        className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar [overflow-anchor:none]"
         ref={scrollRef}
         onScroll={handleScroll}
         onClick={(e) => {
