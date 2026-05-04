@@ -115,14 +115,14 @@ describe("CodexBackend", () => {
     backend = new CodexBackend("/usr/bin/codex");
   });
 
-  it("spawns codex with network_access config flag", async () => {
+  it("spawns codex without sandbox config flags", async () => {
     const { spawn } = await import("child_process");
     const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     const spawnCall = (spawn as any).mock.calls[0];
-    expect(spawnCall[1]).toContain("--config");
-    expect(spawnCall[1]).toContain("sandbox_workspace_write.network_access=true");
+    expect(spawnCall[1]).not.toContain("--config");
+    expect(spawnCall[1]).toEqual(["app-server", "--listen", "stdio://"]);
 
     mock.proc.emit("close", 0);
     await session.result;
@@ -164,7 +164,7 @@ describe("CodexBackend", () => {
     await session.result;
   });
 
-  it("thread/start includes correct params without developerInstructions", async () => {
+  it("thread/start includes danger-full-access sandbox and no developerInstructions", async () => {
     const session = backend.execute("hello", {
       cwd: "/tmp",
       model: "gpt-4",
@@ -179,7 +179,7 @@ describe("CodexBackend", () => {
     expect(threadWrite).toBeDefined();
     const parsed = JSON.parse(threadWrite!);
     expect(parsed.params.cwd).toBe("/tmp");
-    expect(parsed.params.sandbox).toBe("workspace-write");
+    expect(parsed.params.sandbox).toBe("danger-full-access");
     expect(parsed.params.persistExtendedHistory).toBe(true);
     expect(parsed.params.experimentalRawEvents).toBe(false);
     expect(parsed.params.developerInstructions).toBeUndefined();

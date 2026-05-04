@@ -46,7 +46,7 @@ export class CodexBackend implements AgentBackend {
   constructor(private cliPath: string) {}
 
   execute(prompt: string, options: ExecOptions): AgentSession {
-    const proc = spawn(this.cliPath, ["app-server", "--listen", "stdio://", "--config", "sandbox_workspace_write.network_access=true"], {
+    const proc = spawn(this.cliPath, ["app-server", "--listen", "stdio://"], {
       cwd: options.cwd,
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env, ...options.env },
@@ -470,7 +470,7 @@ export class CodexBackend implements AgentBackend {
             // thread/start creates a new thread
             const threadParams: Record<string, unknown> = {
               cwd: options.cwd,
-              sandbox: "workspace-write",
+              sandbox: "danger-full-access",
               persistExtendedHistory: true,
               experimentalRawEvents: false,
             };
