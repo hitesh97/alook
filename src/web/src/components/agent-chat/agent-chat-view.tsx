@@ -242,7 +242,7 @@ export function AgentChatView() {
   const searchParams = useSearchParams();
   const { workspaceId } = useWorkspace();
   const { agents, activeTaskCounts, subscribeWs } = useAgentContext();
-  const { activeChannel } = useChannel();
+  const { activeChannel, loading: channelLoading } = useChannel();
   const agentId = params.id as string;
   const scrollToTaskId = searchParams.get("task");
   const targetConvId = searchParams.get("conv");
@@ -344,10 +344,14 @@ export function AgentChatView() {
   }, []);
 
   useEffect(() => {
+    if (channelLoading) return;
+
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = null;
     pollTaskIdRef.current = null;
+    let ignore = false;
     queueMicrotask(() => {
+      if (ignore) return;
       setLoading(true);
       initialScrollDone.current = false;
       setActiveTask(null);
@@ -371,6 +375,7 @@ export function AgentChatView() {
               listArtifacts(targetConvId, workspaceId).catch(() => [] as Artifact[]),
               listBufferedMessages(targetConvId, workspaceId).catch(() => [] as Message[]),
             ]);
+            if (ignore) return;
             setConversation(conv);
             setMessages(msgs);
             setHasMore(msgs.length >= MESSAGE_LIMIT);
@@ -379,13 +384,15 @@ export function AgentChatView() {
             const taskIds = [...new Set(msgs.filter((m) => m.role === "assistant" && m.task_id).map((m) => m.task_id!))];
             if (taskIds.length > 0) {
               getTaskStepCounts(taskIds, workspaceId)
-                .then(setStepCounts)
+                .then((counts) => { if (!ignore) setStepCounts(counts); })
                 .catch(() => {});
             }
             const task = await getTask(scrollToTaskId, workspaceId).catch(() => null);
+            if (ignore) return;
             if (task && !["completed", "failed", "cancelled", "superseded"].includes(task.status)) {
               setActiveTask(task);
               const tmsgs = await getTaskMessages(scrollToTaskId, workspaceId).catch(() => [] as TaskMessage[]);
+              if (ignore) return;
               setTaskMessages(tmsgs);
               if (tmsgs.length > 0) {
                 lastSeqRef.current = Math.max(...tmsgs.map((m) => m.seq));
@@ -394,6 +401,7 @@ export function AgentChatView() {
             }
           } catch {
             const data = await chatInit(agentId, workspaceId, activeChannel);
+            if (ignore) return;
             setConversation(data.conversation);
             setMessages(data.messages);
             setHasMore(data.has_more_messages);
@@ -403,6 +411,7 @@ export function AgentChatView() {
           }
         } else {
           const data = await chatInit(agentId, workspaceId, activeChannel);
+          if (ignore) return;
           setConversation(data.conversation);
           setMessages(data.messages);
           setHasMore(data.has_more_messages);
@@ -424,11 +433,12 @@ export function AgentChatView() {
       } catch {
         toast.error("Failed to load conversation");
       } finally {
-        setLoading(false);
+        if (!ignore) setLoading(false);
       }
     }
     load();
-  }, [agentId, workspaceId, targetConvId, scrollToTaskId, activeChannel]);
+    return () => { ignore = true; };
+  }, [agentId, workspaceId, targetConvId, scrollToTaskId, activeChannel, channelLoading]);
 
   // Scroll to bottom on initial load (skip if scroll-to-task is active)
   useEffect(() => {

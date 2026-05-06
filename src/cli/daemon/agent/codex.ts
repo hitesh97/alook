@@ -78,9 +78,13 @@ export class CodexBackend implements AgentBackend {
     // Turn lifecycle state
     let turnStarted = false;
     let turnDoneTriggered = false;
-    let turnCompletedSuccessfully = false;
+    let anyTurnCompletedSuccessfully = false;
     let lastCompletedTurnId = "";
     let turnError = "";
+
+    // Continuation state (multi-turn)
+    let continuationResolve: (() => void) | null = null;
+    let turnContinuationTriggered = false;
 
     // Pending RPC callbacks
     const pendingRequests = new Map<
@@ -143,10 +147,25 @@ export class CodexBackend implements AgentBackend {
       if (msg && !turnError) turnError = msg;
     };
 
+    const signalContinuation = () => {
+      if (turnContinuationTriggered) return;
+      turnContinuationTriggered = true;
+      if (continuationResolve) {
+        const r = continuationResolve;
+        continuationResolve = null;
+        r();
+      }
+    };
+
     const triggerTurnDone = (aborted: boolean) => {
       if (turnDoneTriggered) return;
       turnDoneTriggered = true;
       resultStatus = aborted ? "aborted" : "completed";
+      if (continuationResolve) {
+        const r = continuationResolve;
+        continuationResolve = null;
+        r();
+      }
       try { proc.stdin?.end(); } catch { /* already closed */ }
       try { proc.kill("SIGTERM"); } catch { /* already dead */ }
     };
@@ -211,8 +230,8 @@ export class CodexBackend implements AgentBackend {
 
           const status = (turn?.status as string) || (params.status as string) || "";
           if (status === "completed" || status === "finished") {
-            turnCompletedSuccessfully = true;
-            triggerTurnDone(false);
+            anyTurnCompletedSuccessfully = true;
+            signalContinuation();
           } else if (status === "cancelled" || status === "aborted" || status === "interrupted") {
             triggerTurnDone(true);
           } else if (status === "error" || status === "failed") {
@@ -239,7 +258,7 @@ export class CodexBackend implements AgentBackend {
             ? (statusObj.type as string) || ""
             : (statusObj as string) || "";
           if (statusType === "idle" && turnStarted) {
-            triggerTurnDone(false);
+            signalContinuation();
           }
           break;
         }
@@ -483,7 +502,7 @@ export class CodexBackend implements AgentBackend {
 
           resolveSessionId(sessionId);
 
-          // 5. Send turn/start with the prompt
+          // 4. Send turn/start with the prompt
           await sendRpc("turn/start", {
             threadId: sessionId,
             input: [{ type: "text", text: prompt }],
@@ -497,7 +516,41 @@ export class CodexBackend implements AgentBackend {
         }
       };
 
-      startHandshake();
+      const runWithContinuation = async () => {
+        await startHandshake();
+        if (resultStatus === "failed") return;
+
+        const parsedEnvTurns = parseInt(process.env.ALOOK_CODEX_MAX_TURNS || "50", 10);
+        const maxTurns = options.maxTurns ?? (Number.isNaN(parsedEnvTurns) ? 50 : parsedEnvTurns);
+        let turnCount = 1;
+
+        while (turnCount < maxTurns && !turnDoneTriggered) {
+          await new Promise<void>(resolve => { continuationResolve = resolve; });
+          if (turnDoneTriggered) break;
+
+          turnCount++;
+          turnStarted = false;
+          turnContinuationTriggered = false;
+          lastCompletedTurnId = "";
+
+          try {
+            await sendRpc("turn/start", {
+              threadId: sessionId,
+              input: [{ type: "text", text: "continue" }],
+            });
+          } catch (err) {
+            setTurnError(err instanceof Error ? err.message : "continuation turn/start failed");
+            triggerTurnDone(false);
+            break;
+          }
+        }
+
+        if (!turnDoneTriggered) {
+          triggerTurnDone(false);
+        }
+      };
+
+      runWithContinuation();
 
       proc.on("close", (code: number | null) => {
         if (timeoutTimer) clearTimeout(timeoutTimer);
@@ -506,7 +559,7 @@ export class CodexBackend implements AgentBackend {
 
         if (timedOut) {
           resultStatus = "timeout";
-        } else if (code !== 0 && resultStatus === "completed" && !turnCompletedSuccessfully) {
+        } else if (code !== 0 && resultStatus === "completed" && !anyTurnCompletedSuccessfully) {
           // If agent already produced output, treat as completed despite non-zero exit
           // (e.g. MCP transport errors can crash the process after a successful response)
           if (!lastOutput) {
