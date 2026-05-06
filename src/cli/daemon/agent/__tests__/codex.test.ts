@@ -420,41 +420,26 @@ describe("CodexBackend", () => {
     expect(messages).not.toContainEqual(expect.objectContaining({ type: "status" }));
   });
 
-  it("raw protocol — turn/completed (nested) with completed signals continuation (not immediate kill)", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 2 });
+  it("raw protocol — turn/completed (nested) with completed triggers turn done", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
-    // Should NOT immediately kill — should send continuation turn/start
-    expect(mock.stdinEnd).not.toHaveBeenCalled();
-    await tick();
-    // Continuation turn/start sent (id=4, after init=1, thread/start=2, turn/start=3)
-    const continuationWrite = mock.stdinWrites.find((w) => w.includes('"continue"'));
-    expect(continuationWrite).toBeDefined();
-    sendResponse(4, {});
-    await tick();
-
-    // Now send final_answer to end
-    sendNotification("item/completed", {
-      item: { type: "agentMessage", text: "done", phase: "final_answer" },
-    });
     expect(mock.stdinEnd).toHaveBeenCalled();
+    expect(mock.proc.kill).toHaveBeenCalledWith("SIGTERM");
     mock.proc.emit("close", 0);
 
     const result = await session.result;
     expect(result.status).toBe("completed");
   });
 
-  it("raw protocol — turn/completed (flat params) backward compat signals continuation", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 1 });
+  it("raw protocol — turn/completed (flat params) backward compat", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("turn/completed", { turnId: "turn_1", status: "completed" });
-    await tick();
-    // maxTurns=1 so loop exits immediately after first turn, triggers turn done
-    expect(mock.stdinEnd).toHaveBeenCalled();
     mock.proc.emit("close", 0);
 
     const result = await session.result;
@@ -512,14 +497,12 @@ describe("CodexBackend", () => {
   });
 
   it("raw protocol — duplicate turn/completed for same turnId is deduplicated", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 1 });
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
-    // Same turnId — deduplicated, so "failed" is ignored
     sendNotification("turn/completed", { turn: { id: "turn_1", status: "failed" } });
-    await tick();
     mock.proc.emit("close", 0);
 
     const result = await session.result;
@@ -639,15 +622,13 @@ describe("CodexBackend", () => {
     expect(messages).toContainEqual({ type: "text", content: "Here is the answer" });
   });
 
-  it("raw protocol — thread/status/changed (nested idle) signals continuation when turnStarted", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 1 });
+  it("raw protocol — thread/status/changed (nested idle) triggers turn done when turnStarted", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("turn/started", { turn: { id: "turn_1" } });
     sendNotification("thread/status/changed", { status: { type: "idle" } });
-    await tick();
-    // maxTurns=1 so loop exits after first continuation signal
     expect(mock.stdinEnd).toHaveBeenCalled();
     mock.proc.emit("close", 0);
 
@@ -655,15 +636,13 @@ describe("CodexBackend", () => {
     expect(result.status).toBe("completed");
   });
 
-  it("raw protocol — thread/status/changed (flat idle) backward compat signals continuation", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 1 });
+  it("raw protocol — thread/status/changed (flat idle) backward compat", async () => {
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("turn/started", { turn: { id: "turn_1" } });
     sendNotification("thread/status/changed", { status: "idle" });
-    await tick();
-    expect(mock.stdinEnd).toHaveBeenCalled();
     mock.proc.emit("close", 0);
 
     const result = await session.result;
@@ -691,17 +670,15 @@ describe("CodexBackend", () => {
     const mock = getMock();
 
     await completeHandshake();
-    // final_answer triggers triggerTurnDone
-    sendNotification("item/completed", {
-      item: { type: "agentMessage", text: "answer", phase: "final_answer" },
-    });
+    sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
+    // First call: stdin.end + kill
     expect(mock.stdinEnd).toHaveBeenCalledTimes(1);
     expect(mock.proc.kill).toHaveBeenCalledTimes(1);
 
-    // Subsequent signals should not fire again
-    sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
-    sendNotification("turn/started", { turn: { id: "turn_2" } });
+    // Second completion signal (e.g. thread/status/changed also fires)
+    sendNotification("turn/started", { turn: { id: "turn_1" } });
     sendNotification("thread/status/changed", { status: { type: "idle" } });
+    // Should not call again
     expect(mock.stdinEnd).toHaveBeenCalledTimes(1);
     expect(mock.proc.kill).toHaveBeenCalledTimes(1);
 
@@ -730,10 +707,10 @@ describe("CodexBackend", () => {
 
     expect(mock.stdinEnd).not.toHaveBeenCalled();
 
-    // Main thread completes via final_answer
-    sendNotification("item/completed", {
+    // Main thread completes normally
+    sendNotification("turn/completed", {
       threadId: "thread_main",
-      item: { type: "agentMessage", text: "main done", phase: "final_answer" },
+      turn: { id: "main_turn", status: "completed" },
     });
     expect(mock.stdinEnd).toHaveBeenCalled();
     mock.proc.emit("close", 0);
@@ -777,13 +754,12 @@ describe("CodexBackend", () => {
   });
 
   it("error notification with willRetry=true does NOT set turnError", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 1 });
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("error", { error: { message: "reconnecting" }, willRetry: true });
     sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
-    await tick();
     mock.proc.emit("close", 0);
 
     const result = await session.result;
@@ -828,7 +804,7 @@ describe("CodexBackend", () => {
   });
 
   // Full integration test
-  it("full integration: handshake → deltas → final_answer → result resolves", async () => {
+  it("full integration: handshake → deltas → turn/completed → result resolves", async () => {
     const session = backend.execute("hello world", { cwd: "/tmp" });
     const mock = getMock();
 
@@ -841,11 +817,14 @@ describe("CodexBackend", () => {
     sendNotification("item/agentMessage/delta", { threadId: "thread_xyz", itemId: "msg_1", delta: "Hi" });
     sendNotification("item/agentMessage/delta", { threadId: "thread_xyz", itemId: "msg_1", delta: " there" });
 
-    // Agent completes with full text and final_answer
+    // Agent completes with full text
     sendNotification("item/completed", {
       threadId: "thread_xyz",
-      item: { type: "agentMessage", id: "msg_1", text: "Hi there", phase: "final_answer" },
+      item: { type: "agentMessage", id: "msg_1", text: "Hi there" },
     });
+
+    // Turn completes
+    sendNotification("turn/completed", { threadId: "thread_xyz", turn: { id: "turn_1", status: "completed" } });
 
     expect(mock.stdinEnd).toHaveBeenCalled();
     mock.proc.emit("close", 0);
@@ -890,12 +869,11 @@ describe("CodexBackend", () => {
   });
 
   it("turn completed successfully + non-zero exit code → status completed (not failed)", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 1 });
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
-    await tick();
     mock.proc.emit("close", 1);
 
     const result = await session.result;
@@ -934,13 +912,12 @@ describe("CodexBackend", () => {
   });
 
   it("turn completed successfully + non-zero exit + turnError → status failed with turnError", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 1 });
+    const session = backend.execute("hello", { cwd: "/tmp" });
     const mock = getMock();
 
     await completeHandshake();
     sendNotification("error", { error: { message: "rate limit" }, willRetry: false });
     sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
-    await tick();
     mock.proc.emit("close", 1);
 
     const result = await session.result;
@@ -999,191 +976,5 @@ describe("CodexBackend", () => {
     const result = await session.result;
     expect(result.status).toBe("timeout");
     vi.useRealTimers();
-  });
-
-  // Multi-turn continuation tests
-  it("multi-turn: text response → continuation → tool calls → final_answer → done", async () => {
-    const session = backend.execute("write a plan", { cwd: "/tmp", maxTurns: 10 });
-    const mock = getMock();
-
-    await completeHandshake("thread_mt");
-
-    // Turn 1: agent says "I'll write the plan"
-    sendNotification("turn/started", { threadId: "thread_mt", turn: { id: "turn_1" } });
-    sendNotification("item/completed", {
-      threadId: "thread_mt",
-      item: { type: "agentMessage", id: "msg_1", text: "I'll write the plan now" },
-    });
-    sendNotification("turn/completed", { threadId: "thread_mt", turn: { id: "turn_1", status: "completed" } });
-
-    // Should send continuation turn/start (id=4)
-    await tick();
-    const cont1 = mock.stdinWrites.filter((w) => w.includes('"continue"'));
-    expect(cont1.length).toBe(1);
-    sendResponse(4, {});
-    await tick();
-
-    // Turn 2: agent uses a tool
-    sendNotification("turn/started", { threadId: "thread_mt", turn: { id: "turn_2" } });
-    sendNotification("item/started", {
-      threadId: "thread_mt",
-      item: { type: "commandExecution", id: "cmd_1", command: "echo plan" },
-    });
-    sendNotification("item/completed", {
-      threadId: "thread_mt",
-      item: { type: "commandExecution", id: "cmd_1", aggregatedOutput: "plan content" },
-    });
-    // Agent produces final answer
-    sendNotification("item/completed", {
-      threadId: "thread_mt",
-      item: { type: "agentMessage", id: "msg_2", text: "Here is the plan", phase: "final_answer" },
-    });
-
-    // Should kill now
-    expect(mock.stdinEnd).toHaveBeenCalled();
-    expect(mock.proc.kill).toHaveBeenCalledWith("SIGTERM");
-    mock.proc.emit("close", 0);
-
-    const result = await session.result;
-    expect(result.status).toBe("completed");
-    expect(result.output).toBe("Here is the plan");
-
-    const messages = await collectMessages(session.messages);
-    expect(messages).toContainEqual({ type: "text", content: "I'll write the plan now" });
-    expect(messages).toContainEqual(expect.objectContaining({ type: "tool-use", tool: "exec_command" }));
-    expect(messages).toContainEqual(expect.objectContaining({ type: "tool-result", callId: "cmd_1" }));
-    expect(messages).toContainEqual({ type: "text", content: "Here is the plan" });
-  });
-
-  it("multi-turn: maxTurns limit stops runaway continuation", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 3 });
-    const mock = getMock();
-
-    await completeHandshake("thread_max");
-
-    // Turn 1 completes
-    sendNotification("turn/started", { threadId: "thread_max", turn: { id: "turn_1" } });
-    sendNotification("turn/completed", { threadId: "thread_max", turn: { id: "turn_1", status: "completed" } });
-    await tick();
-    sendResponse(4, {}); // continuation turn/start response
-    await tick();
-
-    // Turn 2 completes
-    sendNotification("turn/started", { threadId: "thread_max", turn: { id: "turn_2" } });
-    sendNotification("turn/completed", { threadId: "thread_max", turn: { id: "turn_2", status: "completed" } });
-    await tick();
-    sendResponse(5, {}); // continuation turn/start response
-    await tick();
-
-    // Turn 3 completes — this is the last allowed turn (maxTurns=3)
-    sendNotification("turn/started", { threadId: "thread_max", turn: { id: "turn_3" } });
-    sendNotification("turn/completed", { threadId: "thread_max", turn: { id: "turn_3", status: "completed" } });
-    await tick();
-
-    // Should kill after maxTurns exceeded (no more continuation)
-    expect(mock.stdinEnd).toHaveBeenCalled();
-    mock.proc.emit("close", 0);
-
-    const result = await session.result;
-    expect(result.status).toBe("completed");
-  });
-
-  it("multi-turn: turn/completed with error/failed still triggers immediate turn done", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 10 });
-    const mock = getMock();
-
-    await completeHandshake();
-    sendNotification("turn/completed", { turn: { id: "turn_1", status: "error", error: { message: "rate limit" } } });
-    expect(mock.stdinEnd).toHaveBeenCalled();
-    mock.proc.emit("close", 0);
-
-    const result = await session.result;
-    expect(result.status).toBe("failed");
-    expect(result.error).toBe("rate limit");
-  });
-
-  it("multi-turn: phase=final_answer triggers immediate turn done (no continuation)", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 10 });
-    const mock = getMock();
-
-    await completeHandshake();
-    sendNotification("item/completed", {
-      item: { type: "agentMessage", text: "answer", phase: "final_answer" },
-    });
-    expect(mock.stdinEnd).toHaveBeenCalled();
-    // No continuation turn/start should have been sent
-    const continuations = mock.stdinWrites.filter((w) => w.includes('"continue"'));
-    expect(continuations.length).toBe(0);
-    mock.proc.emit("close", 0);
-
-    const result = await session.result;
-    expect(result.status).toBe("completed");
-  });
-
-  it("multi-turn: continuation turn/start RPC failure triggers turn done", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 10 });
-    const mock = getMock();
-
-    await completeHandshake();
-    sendNotification("turn/completed", { turn: { id: "turn_1", status: "completed" } });
-    await tick();
-    // Fail the continuation turn/start RPC (id=4)
-    sendError(4, { code: -1, message: "connection lost" });
-    await tick();
-
-    expect(mock.stdinEnd).toHaveBeenCalled();
-    mock.proc.emit("close", 1);
-
-    const result = await session.result;
-    expect(result.status).toBe("failed");
-    expect(result.error).toBe("connection lost");
-  });
-
-  it("multi-turn: turn/completed + thread/status/changed on same turn only triggers one continuation", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 2 });
-    const mock = getMock();
-
-    await completeHandshake("thread_dup");
-
-    sendNotification("turn/started", { threadId: "thread_dup", turn: { id: "turn_1" } });
-    // Both signals fire for same turn
-    sendNotification("turn/completed", { threadId: "thread_dup", turn: { id: "turn_1", status: "completed" } });
-    sendNotification("thread/status/changed", { threadId: "thread_dup", status: { type: "idle" } });
-    await tick();
-
-    // Only one continuation turn/start should be sent
-    const continuations = mock.stdinWrites.filter((w) => w.includes('"continue"'));
-    expect(continuations.length).toBe(1);
-
-    sendResponse(4, {}); // continuation response
-    await tick();
-
-    // End with final_answer
-    sendNotification("item/completed", {
-      threadId: "thread_dup",
-      item: { type: "agentMessage", text: "done", phase: "final_answer" },
-    });
-    mock.proc.emit("close", 0);
-
-    const result = await session.result;
-    expect(result.status).toBe("completed");
-  });
-
-  it("multi-turn: process exit mid-continuation resolves result correctly", async () => {
-    const session = backend.execute("hello", { cwd: "/tmp", maxTurns: 10 });
-    const mock = getMock();
-
-    await completeHandshake();
-    sendNotification("turn/started", { turn: { id: "turn_1" } });
-    sendNotification("item/completed", {
-      item: { type: "agentMessage", text: "working on it" },
-    });
-    // Process exits unexpectedly (e.g. OOM kill) while waiting for continuation
-    mock.proc.emit("close", 137);
-
-    const result = await session.result;
-    // Has output so treated as completed despite non-zero exit
-    expect(result.status).toBe("completed");
-    expect(result.output).toBe("working on it");
   });
 });
