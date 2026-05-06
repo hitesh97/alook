@@ -421,7 +421,11 @@ export async function startDaemon(
 
         if (pending_rescan) {
           log.info("Rescan requested — restarting daemon to re-detect runtimes");
+          for (const id of evictedIds) {
+            evictWorkspace(id);
+          }
           requestRestart();
+          return;
         }
 
         for (const apiTask of apiTasks) {

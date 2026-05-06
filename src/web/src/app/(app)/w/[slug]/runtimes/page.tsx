@@ -150,6 +150,9 @@ export default function RuntimesPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmTitle, setConfirmTitle] = useState("");
   const [confirmDescription, setConfirmDescription] = useState("");
+  const [confirmLabel, setConfirmLabel] = useState("Remove");
+  const [confirmLoadingLabel, setConfirmLoadingLabel] = useState<string | undefined>(undefined);
+  const [confirmVariant, setConfirmVariant] = useState<"destructive" | "default">("destructive");
   const [confirmLoading, setConfirmLoading] = useState(false);
   const confirmAction = useRef<(() => Promise<void>) | null>(null);
 
@@ -168,12 +171,15 @@ export default function RuntimesPage() {
 
   // Close the sheet only after the daemon is actually online. Runtime
   // registration can happen before the user starts the daemon process.
+  const sheetOpenRef = useRef(sheetOpen);
+  useEffect(() => { sheetOpenRef.current = sheetOpen; }, [sheetOpen]);
   useEffect(() => {
     return subscribeWs((msg) => {
       if (
         msg.type === "runtime.status" &&
         msg.workspaceId === workspaceId &&
-        msg.status === "online"
+        msg.status === "online" &&
+        sheetOpenRef.current
       ) {
         setSheetOpen(false);
         setGeneratedToken("");
@@ -185,10 +191,14 @@ export default function RuntimesPage() {
   const openConfirm = (
     title: string,
     description: string,
-    action: () => Promise<void>
+    action: () => Promise<void>,
+    opts?: { label?: string; loadingLabel?: string; variant?: "destructive" | "default" }
   ) => {
     setConfirmTitle(title);
     setConfirmDescription(description);
+    setConfirmLabel(opts?.label ?? "Remove");
+    setConfirmLoadingLabel(opts?.loadingLabel);
+    setConfirmVariant(opts?.variant ?? "destructive");
     confirmAction.current = action;
     setConfirmOpen(true);
   };
@@ -430,7 +440,12 @@ export default function RuntimesPage() {
                                   variant="ghost"
                                   size="sm"
                                   className="text-xs h-6 px-2"
-                                  onClick={() => handleUpdate(machine.runtimes[0].id, daemonId)}
+                                  onClick={() => openConfirm(
+                                    "Update daemon",
+                                    `This will update the daemon on "${displayName}" to the latest CLI version. The daemon will restart during the update.`,
+                                    async () => { await handleUpdate(machine.runtimes[0].id, daemonId); },
+                                    { label: "Update", loadingLabel: "Updating...", variant: "default" }
+                                  )}
                                 >
                                   Update
                                 </Button>
@@ -454,7 +469,12 @@ export default function RuntimesPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-xs h-6 px-2"
-                                onClick={() => handleRescan(machine.runtimes[0].id, daemonId)}
+                                onClick={() => openConfirm(
+                                  "Rescan runtimes",
+                                  `This will restart the daemon on "${displayName}" to re-detect available runtimes (Claude Code, Codex, OpenCode).`,
+                                  async () => { await handleRescan(machine.runtimes[0].id, daemonId); },
+                                  { label: "Rescan", loadingLabel: "Triggering...", variant: "default" }
+                                )}
                               >
                                 <RefreshCw className="size-3 mr-1" />
                                 Rescan
@@ -556,6 +576,9 @@ export default function RuntimesPage() {
         onOpenChange={setConfirmOpen}
         title={confirmTitle}
         description={confirmDescription}
+        confirmLabel={confirmLabel}
+        loadingLabel={confirmLoadingLabel}
+        confirmVariant={confirmVariant}
         loading={confirmLoading}
         onConfirm={handleConfirm}
       />

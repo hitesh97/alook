@@ -34,6 +34,8 @@ export function createAuth(env: Env) {
     // may not yet be visible on a D1 read-replica, but the signed cookie carries
     // the session payload set by the sign-in handler itself.
     session: {
+      expiresIn: 30 * 24 * 60 * 60,
+      updateAge: 24 * 60 * 60,
       cookieCache: {
         enabled: true,
         maxAge: 5 * 60,

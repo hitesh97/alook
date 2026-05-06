@@ -16,6 +16,8 @@ interface ConfirmDialogProps {
   title: string;
   description: string;
   confirmLabel?: string;
+  loadingLabel?: string;
+  confirmVariant?: "destructive" | "default";
   loading?: boolean;
   onConfirm: () => void;
 }
@@ -26,6 +28,8 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = "Remove",
+  loadingLabel,
+  confirmVariant = "destructive",
   loading = false,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -46,12 +50,12 @@ export function ConfirmDialog({
             Cancel
           </Button>
           <Button
-            variant="destructive"
+            variant={confirmVariant}
             size="sm"
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? "Removing..." : confirmLabel}
+            {loading ? (loadingLabel ?? `${confirmLabel}...`) : confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

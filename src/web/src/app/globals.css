@@ -866,6 +866,9 @@
   margin-top: 0.2em;
   margin-bottom: 0.2em;
 }
+.markdown li > p {
+  display: inline;
+}
 .markdown li > ul,
 .markdown li > ol {
   margin-top: 0.15em;
@@ -877,6 +880,7 @@
   padding: 0.15em 0.35em;
   border-radius: 0.3em;
   background: var(--muted);
+  overflow-wrap: break-word;
 }
 .markdown pre {
   margin-top: 0.75em;

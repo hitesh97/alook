@@ -1323,7 +1323,7 @@ export function AgentChatView() {
             const isNewAgent = agent?.created_at && (renderNow - new Date(agent.created_at).getTime() < 5 * 60 * 1000);
             const hasEmailTask = (activeTaskCounts[agentId] ?? 0) > 0;
 
-            if (isNewAgent && hasEmailTask) {
+            if (isNewAgent && hasEmailTask && activeChannel === "default") {
               return (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 animate-[fade-up_400ms_ease-out_both]">
                   <div className="relative animate-bounce">
