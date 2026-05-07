@@ -486,20 +486,20 @@ export default function IssuesPage() {
         </Dialog>
       </div>
 
-      <div className="hidden min-h-0 flex-1 overflow-y-auto thin-scrollbar lg:block">
-        <div className="min-w-0 p-4 space-y-4">
+      <div className="hidden min-h-0 flex-1 grid-cols-[minmax(0,1fr)_300px] lg:grid">
+        <div className="min-w-0 overflow-x-auto overflow-y-auto thin-scrollbar p-4">
           {boardLoading ? (
             <div className="grid grid-cols-3 gap-4">
               {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
             </div>
           ) : activeIssues.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 animate-[fade-up_400ms_ease-out_both]">
+            <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
               <CircleDot className="size-8 text-muted-foreground mb-3" />
               <p className="text-sm text-muted-foreground">No active issues</p>
               <p className="text-xs text-muted-foreground/60 mt-1">Create one to get started.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid h-full grid-cols-3 gap-4">
               {ACTIVE_COLUMNS.map((col) => {
                 const columnIssues = activeIssues.filter((issue) => issue.status === col.id);
                 return (
@@ -524,23 +524,30 @@ export default function IssuesPage() {
               })}
             </div>
           )}
-          {completedIssues.length > 0 && (
-            <details className="rounded-lg border border-border/60 bg-card/60">
-              <summary className="flex cursor-pointer items-center justify-between px-3 py-2 text-sm font-medium select-none">
+        </div>
+
+        <aside className="min-h-0 border-l border-border/60 bg-muted/20">
+          <div className="flex h-full flex-col">
+            <div className="shrink-0 border-b border-border/60 px-4 py-3">
+              <div className="flex items-center justify-between gap-2 text-sm font-medium">
                 <span className="flex items-center gap-2">
                   <CheckCircle2 className="size-4 text-muted-foreground" />
                   Completed
                 </span>
                 <span className="text-xs text-muted-foreground">{completedIssues.length}</span>
-              </summary>
-              <div className="space-y-2 border-t border-border/60 p-2">
-                {completedIssues.map((issue) => (
-                  <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agentName={agentName(issue.agent_id)} compact />
-                ))}
               </div>
-            </details>
-          )}
-        </div>
+            </div>
+            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto thin-scrollbar p-3">
+              {completedIssues.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">No completed issues.</div>
+              ) : (
+                completedIssues.map((issue) => (
+                  <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agentName={agentName(issue.agent_id)} compact />
+                ))
+              )}
+            </div>
+          </div>
+        </aside>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto thin-scrollbar p-3 lg:hidden">
@@ -548,16 +555,17 @@ export default function IssuesPage() {
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
           </div>
-        ) : activeIssues.length === 0 ? (
+        ) : activeIssues.length === 0 && completedIssues.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
             <CircleDot className="size-8 text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">No active issues</p>
+            <p className="text-sm text-muted-foreground">No issues yet</p>
             <p className="text-xs text-muted-foreground/60 mt-1">Create one to get started.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {ACTIVE_COLUMNS.map((col) => {
+            {activeIssues.length > 0 && ACTIVE_COLUMNS.map((col) => {
               const columnIssues = activeIssues.filter((issue) => issue.status === col.id);
+              if (columnIssues.length === 0) return null;
               return (
                 <section key={col.id} className="rounded-lg border border-border/60 bg-card/60">
                   <div className="flex items-center justify-between border-b border-border/50 px-3 py-2 text-sm font-medium">
@@ -565,32 +573,26 @@ export default function IssuesPage() {
                     <Badge variant="outline">{columnIssues.length}</Badge>
                   </div>
                   <div className="space-y-2 p-3">
-                    {columnIssues.length === 0 ? (
-                      <div className="rounded-lg border border-dashed border-border/45 px-3 py-4 text-center text-xs text-muted-foreground/70">Empty</div>
-                    ) : (
-                      columnIssues.map((issue) => (
-                        <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agentName={agentName(issue.agent_id)} compact />
-                      ))
-                    )}
+                    {columnIssues.map((issue) => (
+                      <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agentName={agentName(issue.agent_id)} compact />
+                    ))}
                   </div>
                 </section>
               );
             })}
-            <section className="rounded-lg border border-border/60 bg-card/60">
-              <div className="flex items-center justify-between border-b border-border/50 px-3 py-2 text-sm font-medium">
-                <span className="flex items-center gap-2"><CheckCircle2 className="size-4 text-muted-foreground" />Completed</span>
-                <Badge variant="outline">{completedIssues.length}</Badge>
-              </div>
-              <div className="space-y-2 p-3">
-                {completedIssues.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/45 px-3 py-4 text-center text-xs text-muted-foreground/70">No completed issues.</div>
-                ) : (
-                  completedIssues.map((issue) => (
+            {completedIssues.length > 0 && (
+              <section className="rounded-lg border border-border/60 bg-card/60">
+                <div className="flex items-center justify-between border-b border-border/50 px-3 py-2 text-sm font-medium">
+                  <span className="flex items-center gap-2"><CheckCircle2 className="size-4 text-muted-foreground" />Completed</span>
+                  <Badge variant="outline">{completedIssues.length}</Badge>
+                </div>
+                <div className="space-y-2 p-3">
+                  {completedIssues.map((issue) => (
                     <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agentName={agentName(issue.agent_id)} compact />
-                  ))
-                )}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>
