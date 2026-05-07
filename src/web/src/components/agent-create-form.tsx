@@ -51,16 +51,27 @@ const INITIAL_AVATAR: AvatarConfig = { shape: "circle", eye: "dots", nose: "dot"
 
 async function runTour() {
   const waitForElement = (selector: string, timeout = 3000) =>
-    new Promise<void>((resolve) => {
-      if (document.querySelector(selector)) { resolve(); return; }
+    new Promise<Element | null>((resolve) => {
+      const el = document.querySelector(selector);
+      if (el) { resolve(el); return; }
       const ob = new MutationObserver(() => {
-        if (document.querySelector(selector)) { ob.disconnect(); resolve(); }
+        const found = document.querySelector(selector);
+        if (found) { ob.disconnect(); resolve(found); }
       });
       ob.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => { ob.disconnect(); resolve(); }, timeout);
+      setTimeout(() => { ob.disconnect(); resolve(null); }, timeout);
     });
 
-  await waitForElement("#agent-name");
+  const el = await waitForElement("#agent-name");
+  if (!el) return;
+
+  // Wait for layout to stabilize after navigation
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
+  // Verify element has dimensions (painted)
+  if (!el.getBoundingClientRect().height) return;
 
   const { driver } = await import("driver.js");
   await import("driver.js/dist/driver.css");
@@ -150,8 +161,7 @@ export function AgentCreateForm({
   useEffect(() => {
     if (!guided || driverStarted.current) return;
     driverStarted.current = true;
-    const timeout = setTimeout(() => runTour(), 500);
-    return () => clearTimeout(timeout);
+    runTour();
   }, [guided]);
 
   const updateName = (value: string) => {
