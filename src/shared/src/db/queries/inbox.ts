@@ -31,7 +31,7 @@ export async function listUnreadConversations(
       FROM agent_task_queue t
       WHERE t.parent_task_id IS NULL
         AND t.trace_id IS NOT NULL
-        AND t.type != 'kill_task'
+        AND t.type = 'user_dm_message'
         AND t.status IN ('completed', 'failed')
     )
     SELECT c.id,
@@ -91,7 +91,7 @@ export async function getUnreadCount(
         WHERE t.conversation_id = c.id
           AND t.parent_task_id IS NULL
           AND t.trace_id IS NOT NULL
-          AND t.type != 'kill_task'
+          AND t.type = 'user_dm_message'
           AND t.status IN ('completed', 'failed')
       )
       AND EXISTS (
