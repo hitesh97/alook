@@ -6,8 +6,8 @@ import Link from "next/link";
 import type { Agent, Artifact, Issue, Message, WsMessage } from "@alook/shared";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useAgentContext } from "@/contexts/agent-context";
-import { createIssue, deleteIssue, getIssue, getTask, listIssues } from "@/lib/api";
-import type { TaskApi } from "@alook/shared";
+import { createIssue, deleteIssue, getIssue, getTask, getTaskMessages, listIssues } from "@/lib/api";
+import type { TaskApi, TaskMessage } from "@alook/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -207,6 +207,7 @@ export default function IssuesPage() {
   const [detail, setDetail] = useState<{ issue: Issue & { trace_id?: string | null }; messages: Message[]; artifacts: Artifact[] } | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [activeTask, setActiveTask] = useState<TaskApi | null>(null);
+  const [taskLatestText, setTaskLatestText] = useState<string>("");
   const [form, setForm] = useState({ title: "", description: "", agentId: "" });
 
   const completedIssues = useMemo(
@@ -267,13 +268,28 @@ export default function IssuesPage() {
   const isTaskActive = activeTask && !["completed", "failed", "cancelled", "superseded"].includes(activeTask.status);
 
   useEffect(() => {
-    if (!detailTaskId) { setActiveTask(null); return; }
+    if (!detailTaskId) { setActiveTask(null); setTaskLatestText(""); return; }
     let cancelled = false;
     getTask(detailTaskId, workspaceId).then((task) => {
       if (!cancelled) setActiveTask(task);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [detailTaskId, workspaceId]);
+
+  useEffect(() => {
+    if (!isTaskActive || !detailTaskId) return;
+    let cancelled = false;
+    const poll = () => {
+      getTaskMessages(detailTaskId, workspaceId).then((msgs) => {
+        if (cancelled) return;
+        const texts = msgs.filter((m: TaskMessage) => m.type === "text");
+        if (texts.length > 0) setTaskLatestText(texts[texts.length - 1].content);
+      }).catch(() => {});
+    };
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [isTaskActive, detailTaskId, workspaceId]);
 
   useEffect(() => {
     return subscribeWs((msg: WsMessage) => {
@@ -583,7 +599,7 @@ export default function IssuesPage() {
         )}
       </div>
 
-      <Sheet open={!!selectedId} onOpenChange={(open) => { if (!open) { setSelectedId(null); setDetail(null); setActiveTask(null); } }}>
+      <Sheet open={!!selectedId} onOpenChange={(open) => { if (!open) { setSelectedId(null); setDetail(null); setActiveTask(null); setTaskLatestText(""); } }}>
         <SheetContent side="right" showCloseButton>
           <SheetHeader>
             <SheetTitle>
@@ -643,9 +659,14 @@ export default function IssuesPage() {
                     detail.messages.map((message) => <MessageRow key={message.id} message={message} />)
                   )}
                   {isTaskActive && (
-                    <div className="flex items-center gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-600 dark:text-emerald-400">
-                      <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Working
+                    <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
+                      <div className="flex items-center gap-2 text-xs text-emerald-600 dark:text-emerald-400">
+                        <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Working
+                      </div>
+                      {taskLatestText && (
+                        <p className="mt-1 text-[11px] text-muted-foreground line-clamp-2">{taskLatestText}</p>
+                      )}
                     </div>
                   )}
                 </div>
