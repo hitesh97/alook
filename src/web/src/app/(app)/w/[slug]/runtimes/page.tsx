@@ -22,7 +22,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Monitor, Plus } from "lucide-react";
+import { Monitor, Plus, Check } from "lucide-react";
 
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import { semverGte } from "@alook/shared";
@@ -31,16 +31,34 @@ import { ProviderLogo } from "@/components/provider-logo";
 import { triggerRuntimeUpdate, triggerRuntimeRescan, fetchLatestCliVersion } from "@/lib/api";
 import { Loader2, RefreshCw } from "lucide-react";
 
+function StepIndicator({ step, completed }: { step: number; completed: boolean }) {
+  if (completed) {
+    return (
+      <span className="flex items-center justify-center size-5 rounded-full bg-emerald-500 text-white transition-all duration-300">
+        <Check className="size-3" strokeWidth={3} />
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center justify-center size-5 rounded-full bg-foreground text-background text-[10px] font-semibold">
+      {step}
+    </span>
+  );
+}
+
 function ConnectMachineSteps({
   generatedToken,
   generatingToken,
   onGenerateToken,
+  registered,
 }: {
   generatedToken: string;
   generatingToken: boolean;
   onGenerateToken: () => void;
+  registered: boolean;
 }) {
   const hasTriggered = useRef(false);
+
   useEffect(() => {
     if (!generatedToken && !generatingToken && !hasTriggered.current) {
       hasTriggered.current = true;
@@ -48,8 +66,13 @@ function ConnectMachineSteps({
     }
   }, [generatedToken, generatingToken, onGenerateToken]);
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
+  const copyRegister = () => {
+    navigator.clipboard.writeText(`${CLI_CMD} register --token ${generatedToken}`);
+    toast.success("Copied to clipboard");
+  };
+
+  const copyDaemon = () => {
+    navigator.clipboard.writeText(`${CLI_CMD} daemon start --foreground`);
     toast.success("Copied to clipboard");
   };
 
@@ -58,10 +81,9 @@ function ConnectMachineSteps({
       {/* Step 1 */}
       <div className="space-y-2">
         <p className="text-xs font-medium flex items-center gap-2">
-          <span className="flex items-center justify-center size-5 rounded-full bg-foreground text-background text-[10px] font-semibold">
-            1
-          </span>
+          <StepIndicator step={1} completed={registered} />
           Register your CLI
+          {registered && <span className="text-[10px] text-emerald-500 font-normal">Done</span>}
         </p>
         <p className="text-xs text-muted-foreground pl-7">
           Run this in your terminal to link your machine.
@@ -76,11 +98,7 @@ function ConnectMachineSteps({
           <div className="pl-7 space-y-2">
             <div
               className="rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-              onClick={() =>
-                copyToClipboard(
-                  `${CLI_CMD} register --token ${generatedToken}`
-                )
-              }
+              onClick={copyRegister}
               title="Click to copy"
             >
               {CLI_CMD} register --token{" "}
@@ -88,30 +106,25 @@ function ConnectMachineSteps({
                 {generatedToken.slice(0, 12)}...
               </span>
             </div>
-            <Button
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(
-                  `${CLI_CMD} register --token ${generatedToken}`
-                );
-                toast.success("Copied to clipboard");
-              }}
-              className="w-full"
-            >
-              Copy Command
-            </Button>
+            {!registered && (
+              <Button
+                size="sm"
+                onClick={copyRegister}
+                className="w-full"
+              >
+                Copy Command
+              </Button>
+            )}
           </div>
         ) : null}
       </div>
 
       {/* Step 2 */}
       <div
-        className={`space-y-2 ${!generatedToken ? "opacity-40 pointer-events-none" : ""}`}
+        className={`space-y-2 transition-opacity duration-300 ${!registered ? "opacity-40 pointer-events-none" : ""}`}
       >
         <p className="text-xs font-medium flex items-center gap-2">
-          <span className="flex items-center justify-center size-5 rounded-full bg-foreground text-background text-[10px] font-semibold">
-            2
-          </span>
+          <StepIndicator step={2} completed={false} />
           Start the daemon
         </p>
         <p className="text-xs text-muted-foreground pl-7">
@@ -119,13 +132,22 @@ function ConnectMachineSteps({
         </p>
         <div
           className="ml-7 rounded-md bg-muted p-2.5 font-mono text-xs text-muted-foreground cursor-pointer hover:bg-muted/80 transition-colors"
-          onClick={() =>
-            copyToClipboard(`${CLI_CMD} daemon start --foreground`)
-          }
+          onClick={copyDaemon}
           title="Click to copy"
         >
           {CLI_CMD} daemon start --foreground
         </div>
+        {registered && (
+          <div className="pl-7">
+            <Button
+              size="sm"
+              onClick={copyDaemon}
+              className="w-full"
+            >
+              Copy Command
+            </Button>
+          </div>
+        )}
       </div>
 
     </div>
@@ -133,7 +155,7 @@ function ConnectMachineSteps({
 }
 
 export default function RuntimesPage() {
-  const { runtimes, loading, handleGenerateToken, handleDeleteMachine, subscribeWs, workspaceId } =
+  const { agents, runtimes, loading, handleGenerateToken, handleDeleteMachine, subscribeWs, workspaceId } =
     useAgentContext();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -142,6 +164,7 @@ export default function RuntimesPage() {
   const [sheetOpen, setSheetOpen] = useState(() => searchParams.has("connect"));
   const [generatedToken, setGeneratedToken] = useState("");
   const [generatingToken, setGeneratingToken] = useState(false);
+  const [machineRegistered, setMachineRegistered] = useState(false);
 
   const [latestCliVersion, setLatestCliVersion] = useState<string | null>(null);
   const [updatingDaemons, setUpdatingDaemons] = useState<Set<string>>(new Set());
@@ -169,24 +192,33 @@ export default function RuntimesPage() {
     }
   }, [searchParams, router, pathname]);
 
-  // Close the sheet only after the daemon is actually online. Runtime
-  // registration can happen before the user starts the daemon process.
+  // Listen for registration + online events while the sheet is open.
   const sheetOpenRef = useRef(sheetOpen);
   useEffect(() => { sheetOpenRef.current = sheetOpen; }, [sheetOpen]);
+  const agentsRef = useRef(agents);
+  useEffect(() => { agentsRef.current = agents; }, [agents]);
   useEffect(() => {
     return subscribeWs((msg) => {
+      if (!sheetOpenRef.current) return;
+      if (msg.type === "runtime.registered" && msg.workspaceId === workspaceId) {
+        setMachineRegistered(true);
+      }
       if (
         msg.type === "runtime.status" &&
         msg.workspaceId === workspaceId &&
-        msg.status === "online" &&
-        sheetOpenRef.current
+        msg.status === "online"
       ) {
         setSheetOpen(false);
         setGeneratedToken("");
+        setMachineRegistered(false);
         toast.success("Machine connected");
+        if (agentsRef.current.length === 0) {
+          const slug = pathname.split("/")[2];
+          router.push(`/w/${slug}/agents/new`);
+        }
       }
     });
-  }, [subscribeWs, workspaceId]);
+  }, [subscribeWs, workspaceId, pathname, router]);
 
   const openConfirm = (
     title: string,
@@ -358,6 +390,7 @@ export default function RuntimesPage() {
           variant="outline"
           onClick={() => {
             setGeneratedToken("");
+            setMachineRegistered(false);
             setSheetOpen(true);
           }}
           disabled={generatingToken}
@@ -566,6 +599,7 @@ export default function RuntimesPage() {
               generatedToken={generatedToken}
               generatingToken={generatingToken}
               onGenerateToken={onGenerateToken}
+              registered={machineRegistered}
             />
           </SheetBody>
         </SheetContent>

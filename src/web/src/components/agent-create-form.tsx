@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import {
@@ -30,6 +30,8 @@ interface AgentCreateFormProps {
   runtimes: Runtime[];
   defaultRuntimeId?: string;
   modelOptions?: Record<string, string[]>;
+  guided?: boolean;
+  onTourReady?: (startTour: () => void) => void;
   onSave: (data: {
     name: string;
     description: string;
@@ -44,10 +46,52 @@ interface AgentCreateFormProps {
   saving: boolean;
 }
 
+// Stable initial config to avoid hydration mismatch (randomConfig uses Math.random)
+const INITIAL_AVATAR: AvatarConfig = { shape: "circle", eye: "dots", nose: "dot", bg: 0 };
+
+async function runTour() {
+  const { driver } = await import("driver.js");
+  await import("driver.js/dist/driver.css");
+
+  const d = driver({
+    showProgress: true,
+    animate: true,
+    allowClose: true,
+    overlayClickBehavior: () => {},
+    overlayColor: "black",
+    overlayOpacity: 0.4,
+    popoverClass: "agent-tour-popover",
+    steps: [
+      {
+        element: "#agent-name",
+        popover: {
+          title: "Name your agent",
+          description: "Give your agent a name — this is how you'll identify it.",
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "#agent-runtime-select",
+        disableActiveInteraction: false,
+        popover: {
+          title: "Choose a runtime",
+          description: "Select which machine and provider will run this agent.",
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+    ],
+  });
+  d.drive();
+}
+
 export function AgentCreateForm({
   runtimes,
   defaultRuntimeId = "",
   modelOptions,
+  guided = false,
+  onTourReady,
   onSave,
   onCancel,
   saving,
@@ -65,7 +109,16 @@ export function AgentCreateForm({
     null
   );
   const [model, setModel] = useState("");
-  const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(() => randomConfig());
+  const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(INITIAL_AVATAR);
+
+  // Randomize avatar on client mount to avoid hydration mismatch
+  const avatarInitialized = useRef(false);
+  useEffect(() => {
+    if (!avatarInitialized.current) {
+      avatarInitialized.current = true;
+      setAvatarConfig(randomConfig());
+    }
+  }, []);
 
   const selectedRuntime = runtimes.find((r) => r.id === runtimeId);
   const providerModels =
@@ -77,6 +130,18 @@ export function AgentCreateForm({
   const effectiveHandle = emailHandle || derivedHandle;
   const handleError = getHandleError(effectiveHandle);
 
+  // Driver.js guided tour for first-time agent creation
+  const driverStarted = useRef(false);
+  useEffect(() => {
+    onTourReady?.(() => runTour());
+  }, [onTourReady]);
+  useEffect(() => {
+    if (!guided || driverStarted.current) return;
+    driverStarted.current = true;
+    const timeout = setTimeout(() => runTour(), 500);
+    return () => clearTimeout(timeout);
+  }, [guided]);
+
   const updateName = (value: string) => {
     setName(value);
     if (fieldErrors.name && value.trim()) {
@@ -85,7 +150,12 @@ export function AgentCreateForm({
   };
 
   const updateRuntimeId = (value: string) => {
+    const oldProvider = runtimes.find((r) => r.id === runtimeId)?.provider;
+    const newProvider = runtimes.find((r) => r.id === value)?.provider;
     setRuntimeId(value);
+    if (oldProvider && oldProvider !== newProvider) {
+      setModel("");
+    }
     if (fieldErrors.runtimeId && value) {
       setFieldErrors((prev) => ({ ...prev, runtimeId: undefined }));
     }
@@ -134,6 +204,7 @@ export function AgentCreateForm({
           runtimes={runtimes}
           providerModels={providerModels}
           errors={fieldErrors}
+          runtimeAsRadio
         />
 
         <div className="border-t border-border/50 pt-4 mt-4 space-y-4">

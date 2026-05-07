@@ -22,6 +22,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { RuntimeSelect } from "@/components/runtime-select";
+import { ProviderLogo } from "@/components/provider-logo";
 import { isValidHandle } from "@alook/shared";
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import { cn } from "@/lib/utils";
@@ -72,6 +73,7 @@ interface GeneralFieldsProps {
     name?: string;
     runtimeId?: string;
   };
+  runtimeAsRadio?: boolean;
 }
 
 export function GeneralFields({
@@ -88,6 +90,7 @@ export function GeneralFields({
   runtimes,
   providerModels,
   errors,
+  runtimeAsRadio = false,
 }: GeneralFieldsProps) {
   return (
     <>
@@ -153,26 +156,77 @@ export function GeneralFields({
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="agent-runtime">Runtime <span className="text-destructive">*</span></Label>
-        <RuntimeSelect
-          value={runtimeId}
-          onValueChange={(newId) => {
-            const oldProvider = runtimes.find((r) => r.id === runtimeId)?.provider;
-            const newProvider = runtimes.find((r) => r.id === newId)?.provider;
-            setRuntimeId(newId);
-            if (oldProvider && oldProvider !== newProvider) {
-              setModel("");
-            }
-          }}
-          runtimes={runtimes}
-          triggerProps={{
-            "aria-invalid": Boolean(errors?.runtimeId),
-            "aria-describedby": errors?.runtimeId
-              ? "agent-runtime-error"
-              : undefined,
-          }}
-        />
+      <div id="agent-runtime-select" className="space-y-1.5">
+        <Label>Runtime <span className="text-destructive">*</span></Label>
+        {runtimeAsRadio ? (
+          <div className="space-y-1.5" role="radiogroup" aria-label="Runtime">
+            {runtimes.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No runtimes — start a daemon first</p>
+            ) : (
+              runtimes.map((rt) => {
+                const isOnline = rt.status === "online";
+                const isSelected = runtimeId === rt.id;
+                const machine = typeof rt.device_info === "string" ? rt.device_info : "";
+                return (
+                  <label
+                    key={rt.id}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg border p-2.5 cursor-pointer transition-colors",
+                      isSelected
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-foreground/20",
+                      !isOnline && "opacity-40 pointer-events-none"
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="runtime"
+                      value={rt.id}
+                      checked={isSelected}
+                      disabled={!isOnline}
+                      onChange={() => {
+                        const oldProvider = runtimes.find((r) => r.id === runtimeId)?.provider;
+                        const newProvider = rt.provider;
+                        setRuntimeId(rt.id);
+                        if (oldProvider && oldProvider !== newProvider) {
+                          setModel("");
+                        }
+                      }}
+                      className="accent-primary size-3.5"
+                    />
+                    <ProviderLogo provider={rt.provider} className="h-4 w-4 shrink-0" />
+                    <span className="text-sm">{rt.provider}</span>
+                    {machine && (
+                      <span className="text-xs text-muted-foreground">{machine}</span>
+                    )}
+                    {!isOnline && (
+                      <span className="text-xs text-muted-foreground ml-auto">offline</span>
+                    )}
+                  </label>
+                );
+              })
+            )}
+          </div>
+        ) : (
+          <RuntimeSelect
+            value={runtimeId}
+            onValueChange={(newId) => {
+              const oldProvider = runtimes.find((r) => r.id === runtimeId)?.provider;
+              const newProvider = runtimes.find((r) => r.id === newId)?.provider;
+              setRuntimeId(newId);
+              if (oldProvider && oldProvider !== newProvider) {
+                setModel("");
+              }
+            }}
+            runtimes={runtimes}
+            triggerProps={{
+              "aria-invalid": Boolean(errors?.runtimeId),
+              "aria-describedby": errors?.runtimeId
+                ? "agent-runtime-error"
+                : undefined,
+            }}
+          />
+        )}
         {errors?.runtimeId && (
           <p id="agent-runtime-error" className="text-xs text-destructive">
             {errors.runtimeId}

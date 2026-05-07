@@ -1,18 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { AgentCreateForm } from "@/components/agent-create-form";
 import { fetchModelOptions, createEmailAccount } from "@/lib/api";
 import { toast } from "sonner";
+import { CircleHelp } from "lucide-react";
 
 
 export default function CreateAgentPage() {
   const router = useRouter();
   const { slug, workspaceId } = useWorkspace();
   const {
+    agents,
     runtimes,
     handleCreateAgent,
     getFirstOnlineRuntimeId,
@@ -20,21 +22,36 @@ export default function CreateAgentPage() {
 
   const [saving, setSaving] = useState(false);
   const [modelOptions, setModelOptions] = useState<Record<string, string[]>>({});
+  const startTourRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     fetchModelOptions().then(setModelOptions).catch(() => {});
+  }, []);
+
+  const handleTourReady = useCallback((startTour: () => void) => {
+    startTourRef.current = startTour;
   }, []);
 
   return (
     <>
       <div className="flex items-center gap-2 border-b border-border/50 px-3 md:px-5 py-2.5">
         <h1 className="text-sm font-medium">Create Agent</h1>
+        <button
+          type="button"
+          title="Show guided tour"
+          onClick={() => startTourRef.current?.()}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <CircleHelp className="size-3.5" />
+        </button>
       </div>
 
       <AgentCreateForm
         runtimes={runtimes}
         defaultRuntimeId={getFirstOnlineRuntimeId()}
         modelOptions={modelOptions}
+        guided={agents.length === 0}
+        onTourReady={handleTourReady}
         saving={saving}
         onCancel={() => router.back()}
         onSave={async (data) => {
