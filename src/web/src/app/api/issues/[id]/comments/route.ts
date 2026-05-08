@@ -69,7 +69,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   }).catch(() => {});
 
   // Re-dispatch agent when user comments on a non-terminal, non-working issue
-  if (authorType === "user" && !isTerminalIssueStatus(issue.status)) {
+  if (authorType === "user" && !isTerminalIssueStatus(issue.status) && issue.agentId && issue.conversationId) {
     const activeTask = await queries.task.getActiveTaskByConversation(
       db, issue.conversationId, ws.workspaceId
     );

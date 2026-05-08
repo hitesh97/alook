@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocalStorage } from "@/hooks/use-local-storage";
-import { Check, CheckCircle2, CircleDot, File as FileIcon, GitBranch, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
+import { Check, CircleDot, Eye, EyeOff, File as FileIcon, GitBranch, Loader2, MessageSquare, Plus, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import type { Agent, Artifact, Issue, IssueComment, Message, WsMessage } from "@alook/shared";
 import { isTerminalIssueStatus } from "@alook/shared";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { useAgentContext } from "@/contexts/agent-context";
-import { createIssue, deleteIssue, getIssue, getTask, getTaskMessages, listIssues } from "@/lib/api";
+import { createIssue, deleteIssue, getIssue, getTask, getTaskMessages, listIssues, updateIssue } from "@/lib/api";
 import type { TaskApi, TaskMessage } from "@alook/shared";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,12 +23,14 @@ import {
 import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Select, SelectTrigger, SelectValue, SelectPopup, SelectItem } from "@/components/ui/select";
 import { AvatarRenderer, parseAvatarUrl } from "@/components/avatar";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, useDroppable, useDraggable, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 
 // TODO: re-enable when Codex CLI fixes image_url serialization bug
 // const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
@@ -38,15 +40,16 @@ const SIDECAR_MIN_WIDTH = 320;
 const SIDECAR_MAX_WIDTH_RATIO = 0.8;
 const SIDECAR_DEFAULT_WIDTH = 448;
 
-const ACTIVE_COLUMNS = [
-  { id: "todo", label: "Todo" },
-  { id: "in_progress", label: "In Progress" },
-  { id: "review", label: "Review" },
+const COLUMNS = [
+  { id: "todo", label: "Todo", statuses: ["todo"] },
+  { id: "in_progress", label: "In Progress", statuses: ["in_progress"] },
+  { id: "review", label: "Review", statuses: ["review"] },
+  { id: "completed", label: "Completed", statuses: ["done", "closed", "canceled", "failed"] },
 ] as const;
-
-const TERMINAL_STATUSES = ["done", "closed", "canceled", "failed"];
+const SELECTOR_STATUSES = ["todo", "in_progress", "review", "done"] as const;
 
 function statusLabel(status: string) {
+  if (status === "done") return "Complete";
   return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -147,7 +150,9 @@ function IssueCard({
                 <AgentAvatar agent={agent} size={14} />
                 <span className="truncate">{agent.name}</span>
               </span>
-            ) : <span />}
+            ) : (
+              <span className="truncate text-muted-foreground/60">{issue.agent_id ? "" : "Unassigned"}</span>
+            )}
             <span className="shrink-0">{formatDate(issue.updated_at)}</span>
           </div>
         </div>
@@ -161,6 +166,51 @@ function IssueCard({
         </ContextMenuContent>
       )}
     </ContextMenu>
+  );
+}
+
+function DroppableColumn({ id, children, className }: { id: string; children: React.ReactNode; className?: string }) {
+  const { isOver, setNodeRef } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "flex min-h-0 flex-col rounded-lg border bg-card/60 transition-colors",
+        isOver ? "ring-2 ring-primary/40 bg-primary/5 border-primary/30" : "border-border/60",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+function DraggableIssueCard({
+  issue,
+  selected,
+  onClick,
+  onDelete,
+  agent,
+  compact = false,
+}: {
+  issue: Issue;
+  selected: boolean;
+  onClick: () => void;
+  onDelete?: () => void;
+  agent?: Agent | null;
+  compact?: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: issue.id });
+  const style: React.CSSProperties = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.4 : 1,
+    cursor: isDragging ? "grabbing" : "grab",
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...listeners} {...attributes}>
+      <IssueCard issue={issue} selected={selected} onClick={onClick} onDelete={onDelete} agent={agent} compact={compact} />
+    </div>
   );
 }
 
@@ -266,7 +316,9 @@ function AttachmentList({ artifacts, workspaceId }: { artifacts: Artifact[]; wor
 export default function IssuesPage() {
   const { workspaceId, slug } = useWorkspace();
   const { agents, loading: agentsLoading, subscribeWs } = useAgentContext();
-  const [recentAgentId, setRecentAgentId] = useLocalStorage<string>("issue-recent-agent-id", "");
+  const [recentAgentId, setRecentAgentId] = useLocalStorage<string>(`issue-recent-agent-id-${workspaceId}`, "");
+  const [draft, setDraft] = useLocalStorage<{ title: string; description: string; agentId?: string }>(`issue-draft-${workspaceId}`, { title: "", description: "" });
+  const [showCompleted, setShowCompleted] = useLocalStorage<boolean>("issues-show-completed", true);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -279,21 +331,18 @@ export default function IssuesPage() {
   const [taskLatestText, setTaskLatestText] = useState<string>("");
   const [form, setForm] = useState({ title: "", description: "", agentId: "" });
   const [sidecarWidth, setSidecarWidth] = useState(SIDECAR_DEFAULT_WIDTH);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const sidecarDragging = useRef(false);
   const timelineRef = useRef<HTMLDivElement>(null);
+  const pendingStatusUpdate = useRef<string | null>(null);
 
-  const completedIssues = useMemo(
-    () => issues.filter((issue) => TERMINAL_STATUSES.includes(issue.status)),
-    [issues]
-  );
-  const activeIssues = useMemo(
-    () => issues.filter((issue) => !TERMINAL_STATUSES.includes(issue.status)),
-    [issues]
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
   const agentsById = useMemo(() => new Map(agents.map(a => [a.id, a])), [agents]);
   const selectedFormAgent = agentsById.get(form.agentId) ?? null;
 
-  function agentName(agentId: string) {
+  function agentName(agentId: string | null) {
+    if (!agentId) return "Unassigned";
     return agentsById.get(agentId)?.name ?? agentId;
   }
 
@@ -317,14 +366,26 @@ export default function IssuesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId]);
 
+  const formHydrated = useRef(false);
+
   useEffect(() => {
-    if (agents.length === 0) return;
-    const preferredValid = recentAgentId && agents.some(a => a.id === recentAgentId);
-    const preferred = preferredValid ? recentAgentId : agents[0].id;
-    if (!form.agentId || (form.agentId !== preferred && form.agentId === agents[0]?.id && preferredValid)) {
+    if (formHydrated.current) return;
+    if (draft.agentId !== undefined) {
+      formHydrated.current = true;
+      setForm({ title: draft.title, description: draft.description, agentId: draft.agentId });
+    } else if (agents.length > 0) {
+      formHydrated.current = true;
+      const preferredValid = recentAgentId && agents.some((a) => a.id === recentAgentId);
+      const preferred = preferredValid ? recentAgentId : agents[0].id;
       setForm((prev) => ({ ...prev, agentId: preferred }));
     }
-  }, [agents, form.agentId, recentAgentId]);
+  }, [draft, agents, recentAgentId]);
+
+  useEffect(() => {
+    if (!dialogOpen) return;
+    setDraft({ title: form.title, description: form.description, agentId: form.agentId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.title, form.description, form.agentId, dialogOpen]);
 
   async function openIssue(issueId: string) {
     setSelectedId(issueId);
@@ -375,7 +436,7 @@ export default function IssuesPage() {
           if (prev.messages.some((m) => m.id === msg.message.id)) return prev;
           return { ...prev, messages: [...prev.messages, msg.message] };
         });
-        if (msg.message.role === "event" && msg.message.content.startsWith("Issue status changed:")) {
+        if (msg.message.role === "event" && msg.message.content.startsWith("Issue status changed:") && !pendingStatusUpdate.current) {
           const match = msg.message.content.match(/-> (\w+)/);
           if (match) {
             const newStatus = match[1] as Issue["status"];
@@ -392,8 +453,10 @@ export default function IssuesPage() {
         });
       }
       if (msg.type === "task.updated" && (msg.status === "running" || msg.status === "completed" || msg.status === "failed")) {
-        reload();
-        if (selectedId) openIssue(selectedId);
+        if (!pendingStatusUpdate.current) {
+          reload();
+          if (selectedId) openIssue(selectedId);
+        }
         if (detailTaskId) {
           getTask(detailTaskId, workspaceId).then(setActiveTask).catch(() => {});
         }
@@ -409,19 +472,19 @@ export default function IssuesPage() {
   }, [detail]);
 
   async function handleCreate() {
-    if (!form.title.trim() || !form.agentId) return;
+    if (!form.title.trim()) return;
     setCreating(true);
     try {
       const res = await createIssue(workspaceId, {
-        agent_id: form.agentId,
+        agent_id: form.agentId || undefined,
         title: form.title.trim(),
         description: form.description.trim(),
         // files: attachments, // TODO: disabled until Codex CLI fixes image_url serialization bug
       });
       setIssues((prev) => [res.issue, ...prev]);
       setDialogOpen(false);
-      setRecentAgentId(form.agentId);
-      setForm({ title: "", description: "", agentId: form.agentId });
+      if (form.agentId) setRecentAgentId(form.agentId);
+      resetDraft();
       await openIssue(res.issue.id);
       toast.success("Issue created");
     } catch (err) {
@@ -461,8 +524,76 @@ export default function IssuesPage() {
   // function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) { ... }
   // function removeAttachment(index: number) { ... }
 
-  function resetDraft(nextAgentId = form.agentId) {
-    setForm({ title: "", description: "", agentId: nextAgentId || agents[0]?.id || "" });
+  function resetDraft() {
+    const preferredValid = recentAgentId && agents.some((a) => a.id === recentAgentId);
+    const defaultAgent = preferredValid ? recentAgentId : agents[0]?.id || "";
+    setForm({ title: "", description: "", agentId: defaultAgent });
+    setDraft({ title: "", description: "" });
+    formHydrated.current = true;
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveDragId(event.active.id as string);
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    setActiveDragId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const issueId = active.id as string;
+    const targetColId = over.id as string;
+    const issue = issues.find((i) => i.id === issueId);
+    if (!issue) return;
+
+    const targetCol = COLUMNS.find((c) => c.id === targetColId);
+    if (!targetCol) return;
+
+    if ((targetCol.statuses as readonly string[]).includes(issue.status)) return;
+
+    const newStatus = targetColId === "completed" ? "done" : targetColId;
+    const oldStatus = issue.status;
+
+    const now = new Date().toISOString();
+    setIssues((prev) => prev.map((i) => i.id === issueId ? { ...i, status: newStatus as Issue["status"], updated_at: now } : i));
+    if (detail?.issue.id === issueId) {
+      setDetail((prev) => prev ? { ...prev, issue: { ...prev.issue, status: newStatus as Issue["status"], updated_at: now } } : prev);
+    }
+
+    pendingStatusUpdate.current = issueId;
+    try {
+      await updateIssue(workspaceId, issueId, { status: newStatus as Issue["status"] });
+    } catch (err) {
+      setIssues((prev) => prev.map((i) => i.id === issueId ? { ...i, status: oldStatus } : i));
+      if (detail?.issue.id === issueId) {
+        setDetail((prev) => prev ? { ...prev, issue: { ...prev.issue, status: oldStatus } } : prev);
+      }
+      toast.error(err instanceof Error ? err.message : "Failed to update issue status");
+    } finally {
+      pendingStatusUpdate.current = null;
+    }
+  }
+
+  async function handleStatusChange(newStatus: string) {
+    if (!detail) return;
+    const issueId = detail.issue.id;
+    const oldStatus = detail.issue.status;
+    if (newStatus === oldStatus) return;
+
+    const now = new Date().toISOString();
+    setDetail((prev) => prev ? { ...prev, issue: { ...prev.issue, status: newStatus as Issue["status"], updated_at: now } } : prev);
+    setIssues((prev) => prev.map((i) => i.id === issueId ? { ...i, status: newStatus as Issue["status"], updated_at: now } : i));
+
+    pendingStatusUpdate.current = issueId;
+    try {
+      await updateIssue(workspaceId, issueId, { status: newStatus as Issue["status"] });
+    } catch (err) {
+      setDetail((prev) => prev ? { ...prev, issue: { ...prev.issue, status: oldStatus } } : prev);
+      setIssues((prev) => prev.map((i) => i.id === issueId ? { ...i, status: oldStatus } : i));
+      toast.error(err instanceof Error ? err.message : "Failed to update issue status");
+    } finally {
+      pendingStatusUpdate.current = null;
+    }
   }
 
   const boardLoading = loading || agentsLoading;
@@ -477,9 +608,14 @@ export default function IssuesPage() {
           open={dialogOpen}
           onOpenChange={(open) => {
             setDialogOpen(open);
-            if (!open && !creating) resetDraft();
           }}
         >
+          {!showCompleted && (
+            <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowCompleted(true)}>
+              <Eye className="size-3" />
+              Show completed
+            </Button>
+          )}
           <DialogTrigger render={<Button size="sm" className="w-full sm:w-auto" />}>
             <Plus className="size-4" />
             New issue
@@ -510,7 +646,7 @@ export default function IssuesPage() {
                     render={
                       <button
                         type="button"
-                        disabled={agents.length === 0 || creating}
+                        disabled={creating}
                         className="-ml-1.5 flex h-7 min-w-0 flex-1 items-center rounded-md bg-muted/40 px-1.5 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
                       />
                     }
@@ -518,16 +654,29 @@ export default function IssuesPage() {
                     {selectedFormAgent ? (
                       <AgentIdentity agent={selectedFormAgent} size={18} />
                     ) : (
-                      <span className="text-sm text-muted-foreground">Select an agent</span>
+                      <span className="text-sm text-muted-foreground/70">Unassigned</span>
                     )}
                   </PopoverTrigger>
                   <PopoverContent align="start" className="max-h-64 w-72 overflow-y-auto p-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForm((prev) => ({ ...prev, agentId: "" }));
+                        setDraft((prev) => ({ ...prev, agentId: "" }));
+                        setAssigneeOpen(false);
+                      }}
+                      className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <span className="text-muted-foreground">None (unassigned)</span>
+                      {!form.agentId ? <Check className="size-3.5 shrink-0" /> : null}
+                    </button>
                     {agents.map((agent) => (
                       <button
                         key={agent.id}
                         type="button"
                         onClick={() => {
                           setForm((prev) => ({ ...prev, agentId: agent.id }));
+                          setDraft((prev) => ({ ...prev, agentId: agent.id }));
                           setAssigneeOpen(false);
                         }}
                         className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground"
@@ -572,7 +721,7 @@ export default function IssuesPage() {
                   size="sm"
                   className="h-7 px-3 text-xs"
                   onClick={handleCreate}
-                  disabled={creating || !form.title.trim() || !form.agentId}
+                  disabled={creating || !form.title.trim()}
                 >
                   {creating ? <Loader2 className="mr-1 size-3 animate-spin" /> : <Plus className="mr-1 size-3" />}
                   Create
@@ -582,27 +731,39 @@ export default function IssuesPage() {
         </Dialog>
       </div>
 
-      <div className="hidden min-h-0 flex-1 grid-cols-[minmax(0,1fr)_300px] lg:grid">
-        <div className="min-w-0 overflow-x-auto overflow-y-auto thin-scrollbar p-4">
-          {boardLoading ? (
-            <div className="grid grid-cols-3 gap-4">
-              {Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
-            </div>
-          ) : activeIssues.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
-              <CircleDot className="size-8 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">No active issues</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Create one to get started.</p>
-            </div>
-          ) : (
-            <div className="grid h-full grid-cols-3 gap-4">
-              {ACTIVE_COLUMNS.map((col) => {
-                const columnIssues = activeIssues.filter((issue) => issue.status === col.id);
+      <div className="hidden min-h-0 flex-1 lg:block overflow-y-auto thin-scrollbar p-4">
+        {boardLoading ? (
+          <div className={cn("grid h-full gap-4", showCompleted ? "grid-cols-4" : "grid-cols-3")}>
+            {Array.from({ length: showCompleted ? 12 : 9 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
+          </div>
+        ) : issues.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
+            <CircleDot className="size-8 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground">No issues</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">Create one to get started.</p>
+          </div>
+        ) : (
+          <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <div className={cn("grid h-full gap-4", showCompleted ? "grid-cols-4" : "grid-cols-3")}>
+              {COLUMNS.filter(col => col.id !== "completed" || showCompleted).map((col) => {
+                const columnIssues = issues.filter((issue) => (col.statuses as readonly string[]).includes(issue.status));
                 return (
-                  <div key={col.id} className="flex min-h-0 flex-col rounded-lg border border-border/60 bg-card/60">
+                  <DroppableColumn key={col.id} id={col.id}>
                     <div className="flex shrink-0 items-center justify-between border-b border-border/60 bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
                       <span>{col.label}</span>
-                      <span>{columnIssues.length}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span>{columnIssues.length}</span>
+                        {col.id === "completed" && (
+                          <button
+                            type="button"
+                            disabled={!!activeDragId}
+                            onClick={() => setShowCompleted(false)}
+                            className="rounded p-0.5 text-muted-foreground/60 transition-colors hover:bg-muted hover:text-muted-foreground disabled:opacity-40"
+                          >
+                            <EyeOff className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="min-h-0 flex-1 space-y-2 overflow-y-auto thin-scrollbar p-2">
                       {columnIssues.length === 0 ? (
@@ -611,39 +772,23 @@ export default function IssuesPage() {
                         </div>
                       ) : (
                         columnIssues.map((issue) => (
-                          <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agent={agentsById.get(issue.agent_id) ?? null} />
+                          <DraggableIssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agent={agentsById.get(issue.agent_id ?? "") ?? null} />
                         ))
                       )}
                     </div>
-                  </div>
+                  </DroppableColumn>
                 );
               })}
             </div>
-          )}
-        </div>
-
-        <aside className="min-h-0 border-l border-border/60 bg-muted/20">
-          <div className="flex h-full flex-col">
-            <div className="shrink-0 border-b border-border/60 px-4 py-3">
-              <div className="flex items-center justify-between gap-2 text-sm font-medium">
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="size-4 text-muted-foreground" />
-                  Completed
-                </span>
-                <span className="text-xs text-muted-foreground">{completedIssues.length}</span>
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto thin-scrollbar p-3">
-              {completedIssues.length === 0 ? (
-                <div className="py-8 text-center text-xs text-muted-foreground">No completed issues.</div>
-              ) : (
-                completedIssues.map((issue) => (
-                  <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agent={agentsById.get(issue.agent_id) ?? null} compact />
-                ))
-              )}
-            </div>
-          </div>
-        </aside>
+            <DragOverlay style={{ zIndex: 9999 }}>
+              {activeDragId ? (() => {
+                const dragIssue = issues.find((i) => i.id === activeDragId);
+                if (!dragIssue) return null;
+                return <IssueCard issue={dragIssue} selected={false} onClick={() => {}} agent={agentsById.get(dragIssue.agent_id ?? "") ?? null} />;
+              })() : null}
+            </DragOverlay>
+          </DndContext>
+        )}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto thin-scrollbar p-3 lg:hidden">
@@ -651,7 +796,7 @@ export default function IssuesPage() {
           <div className="space-y-3">
             {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-28" />)}
           </div>
-        ) : activeIssues.length === 0 && completedIssues.length === 0 ? (
+        ) : issues.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
             <CircleDot className="size-8 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No issues yet</p>
@@ -659,8 +804,9 @@ export default function IssuesPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {activeIssues.length > 0 && ACTIVE_COLUMNS.map((col) => {
-              const columnIssues = activeIssues.filter((issue) => issue.status === col.id);
+            {COLUMNS.map((col) => {
+              if (col.id === "completed" && !showCompleted) return null;
+              const columnIssues = issues.filter((issue) => (col.statuses as readonly string[]).includes(issue.status));
               if (columnIssues.length === 0) return null;
               return (
                 <section key={col.id} className="rounded-lg border border-border/60 bg-card/60">
@@ -670,25 +816,12 @@ export default function IssuesPage() {
                   </div>
                   <div className="space-y-2 p-3">
                     {columnIssues.map((issue) => (
-                      <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agent={agentsById.get(issue.agent_id) ?? null} compact />
+                      <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agent={agentsById.get(issue.agent_id ?? "") ?? null} compact />
                     ))}
                   </div>
                 </section>
               );
             })}
-            {completedIssues.length > 0 && (
-              <section className="rounded-lg border border-border/60 bg-card/60">
-                <div className="flex items-center justify-between border-b border-border/50 px-3 py-2 text-sm font-medium">
-                  <span className="flex items-center gap-2"><CheckCircle2 className="size-4 text-muted-foreground" />Completed</span>
-                  <Badge variant="outline">{completedIssues.length}</Badge>
-                </div>
-                <div className="space-y-2 p-3">
-                  {completedIssues.map((issue) => (
-                    <IssueCard key={issue.id} issue={issue} selected={selectedId === issue.id} onClick={() => openIssue(issue.id)} onDelete={() => handleDeleteIssue(issue.id)} agent={agentsById.get(issue.agent_id) ?? null} compact />
-                  ))}
-                </div>
-              </section>
-            )}
           </div>
         )}
       </div>
@@ -707,7 +840,7 @@ export default function IssuesPage() {
             onLostPointerCapture={onSidecarPointerUp}
             className="hidden sm:block absolute -left-px top-0 bottom-0 w-1.5 cursor-col-resize z-10 hover:bg-primary/20 active:bg-primary/30 transition-colors rounded-l-xl"
           />
-          <SheetHeader className="border-b-0 pb-2">
+          <SheetHeader className="relative z-10 border-b-0 pb-2">
             <SheetTitle>
               {detailLoading || !detail ? (
                 <div className="space-y-2">
@@ -723,34 +856,45 @@ export default function IssuesPage() {
                     </Button>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-0.5">
-                      <Link
-                        href={`/w/${slug}/agents/${detail.issue.agent_id}?conv=${detail.issue.conversation_id}${detail.issue.latest_task_id ? `&task=${detail.issue.latest_task_id}` : ""}`}
-                        className="group inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 px-2 hover:bg-muted hover:text-foreground transition-all"
-                      >
-                        <MessageSquare className="size-3 shrink-0" />
-                        <span className="max-w-0 opacity-0 group-hover:max-w-16 group-hover:opacity-100 group-hover:ml-1 group-hover:delay-300 overflow-hidden transition-all duration-500 ease-out">Chat</span>
-                      </Link>
-                      {detail.issue.trace_id && (
+                    {detail.issue.agent_id && detail.issue.conversation_id && (
+                      <div className="flex items-center gap-0.5">
                         <Link
-                          href={`/w/${slug}/threads/${detail.issue.trace_id}`}
+                          href={`/w/${slug}/agents/${detail.issue.agent_id}?conv=${detail.issue.conversation_id}${detail.issue.latest_task_id ? `&task=${detail.issue.latest_task_id}` : ""}`}
                           className="group inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 px-2 hover:bg-muted hover:text-foreground transition-all"
                         >
-                          <GitBranch className="size-3 shrink-0" />
-                          <span className="max-w-0 opacity-0 group-hover:max-w-20 group-hover:opacity-100 group-hover:ml-1 group-hover:delay-300 overflow-hidden transition-all duration-500 ease-out">Thread</span>
+                          <MessageSquare className="size-3 shrink-0" />
+                          <span className="max-w-0 opacity-0 group-hover:max-w-16 group-hover:opacity-100 group-hover:ml-1 group-hover:delay-300 overflow-hidden transition-all duration-500 ease-out">Chat</span>
                         </Link>
-                      )}
-                    </div>
-                    <Badge variant={detail.issue.status === "in_progress" ? "default" : "outline"} className="shrink-0 text-[10px] px-1.5 py-0">
-                      {detail.issue.status === "in_progress" && <Loader2 className="mr-1 size-3 animate-spin" />}
-                      {statusLabel(detail.issue.status)}
-                    </Badge>
-                    {agentsById.get(detail.issue.agent_id) && (
+                        {detail.issue.trace_id && (
+                          <Link
+                            href={`/w/${slug}/threads/${detail.issue.trace_id}`}
+                            className="group inline-flex items-center rounded-lg text-xs text-muted-foreground h-7 px-2 hover:bg-muted hover:text-foreground transition-all"
+                          >
+                            <GitBranch className="size-3 shrink-0" />
+                            <span className="max-w-0 opacity-0 group-hover:max-w-20 group-hover:opacity-100 group-hover:ml-1 group-hover:delay-300 overflow-hidden transition-all duration-500 ease-out">Thread</span>
+                          </Link>
+                        )}
+                      </div>
+                    )}
+                    <Select value={detail.issue.status} onValueChange={(val) => { if (val) handleStatusChange(val); }}>
+                      <SelectTrigger className="w-fit h-5 shrink-0 gap-1 rounded-full border px-2 text-[10px] font-medium">
+                        {detail.issue.status === "in_progress" && <Loader2 className="size-3 animate-spin" />}
+                        <SelectValue placeholder={statusLabel(detail.issue.status)} />
+                      </SelectTrigger>
+                      <SelectPopup portal={false} alignItemWithTrigger={false} side="bottom" sideOffset={4} className="min-w-0 p-0.5">
+                        {SELECTOR_STATUSES.map((s) => (
+                          <SelectItem key={s} value={s} className="py-1 pl-1.5 pr-6 text-[11px]">{statusLabel(s)}</SelectItem>
+                        ))}
+                      </SelectPopup>
+                    </Select>
+                    {detail.issue.agent_id && agentsById.get(detail.issue.agent_id) ? (
                       <span className="flex items-center gap-1">
                         <AgentAvatar agent={agentsById.get(detail.issue.agent_id)} size={14} />
                         <span className="truncate">{agentName(detail.issue.agent_id)}</span>
                       </span>
-                    )}
+                    ) : !detail.issue.agent_id ? (
+                      <span className="text-muted-foreground/60">Unassigned</span>
+                    ) : null}
                     <span className="shrink-0">{formatDate(detail.issue.updated_at)}</span>
                   </div>
                 </div>

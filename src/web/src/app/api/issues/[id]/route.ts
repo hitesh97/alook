@@ -35,11 +35,9 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
 
   const messages = await queries.issue.listIssueMessages(db, id, ws.workspaceId);
   const comments = await queries.issueComment.listComments(db, id, ws.workspaceId);
-  const artifacts = await queries.artifact.listArtifactsByConversation(
-    db,
-    issue.conversationId,
-    ws.workspaceId,
-  );
+  const artifacts = issue.conversationId
+    ? await queries.artifact.listArtifactsByConversation(db, issue.conversationId, ws.workspaceId)
+    : [];
   return writeJSON({
     issue: { ...issueToResponse(issue), trace_id: traceId },
     messages: (messages ?? []).map(messageToResponse),
@@ -72,7 +70,7 @@ export const PATCH = withAuth(async (req: NextRequest, ctx) => {
   });
   if (!updated) return writeError("issue not found", 404);
 
-  if (body.status && body.status !== existing.status) {
+  if (body.status && body.status !== existing.status && existing.conversationId) {
     await queries.message.createMessage(db, {
       conversationId: existing.conversationId,
       role: "event",
@@ -95,19 +93,21 @@ export const DELETE = withAuth(async (req: NextRequest, ctx) => {
   const issue = await queries.issue.getIssue(db, id, ws.workspaceId);
   if (!issue) return writeError("issue not found", 404);
 
-  const taskService = new TaskService(db);
-  try {
-    const task = issue.latestTaskId
-      ? await queries.task.getTask(db, issue.latestTaskId, ws.workspaceId)
-      : null;
-    const reason = "Task cancelled: issue deleted";
-    if (task?.traceId) {
-      await taskService.cancelTrace(task.traceId, ws.workspaceId, { reason });
-    } else {
-      await taskService.cancelActiveTask(issue.conversationId, ws.workspaceId, { skipDispatch: true, reason });
+  if (issue.conversationId) {
+    const taskService = new TaskService(db);
+    try {
+      const task = issue.latestTaskId
+        ? await queries.task.getTask(db, issue.latestTaskId, ws.workspaceId)
+        : null;
+      const reason = "Task cancelled: issue deleted";
+      if (task?.traceId) {
+        await taskService.cancelTrace(task.traceId, ws.workspaceId, { reason });
+      } else {
+        await taskService.cancelActiveTask(issue.conversationId, ws.workspaceId, { skipDispatch: true, reason });
+      }
+    } catch (err) {
+      log.warn("failed to cancel tasks during issue deletion", { issueId: id, err });
     }
-  } catch (err) {
-    log.warn("failed to cancel tasks during issue deletion", { issueId: id, err });
   }
 
   await queries.issue.deleteIssue(db, id, ws.workspaceId);

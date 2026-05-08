@@ -390,12 +390,11 @@ export const issue = sqliteTable(
     workspaceId: text("workspace_id")
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
-    agentId: text("agent_id").notNull(),
+    agentId: text("agent_id"),
     creatorUserId: text("creator_user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     conversationId: text("conversation_id")
-      .notNull()
       .references(() => conversation.id, { onDelete: "cascade" }),
     latestTaskId: text("latest_task_id").references(() => agentTaskQueue.id, {
       onDelete: "set null",

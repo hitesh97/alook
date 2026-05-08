@@ -66,7 +66,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const contentType = req.headers.get("content-type") ?? "";
   const isMultipart = contentType.includes("multipart/form-data");
 
-  let body: { agent_id: string; title: string; description: string };
+  let body: { agent_id?: string; title: string; description: string };
   const files: File[] = [];
 
   if (isMultipart) {
@@ -77,7 +77,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       return writeError("invalid form data", 400);
     }
     const parsed = CreateIssueRequestSchema.safeParse({
-      agent_id: formData.get("agent_id"),
+      agent_id: formData.get("agent_id") || undefined,
       title: formData.get("title"),
       description: formData.get("description") ?? "",
     });
@@ -105,6 +105,21 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     }
   }
 
+  // Unassigned issue flow: no agent, no conversation, no task dispatch
+  if (!body.agent_id) {
+    const created = await queries.issue.createIssue(db, {
+      workspaceId: ws.workspaceId,
+      agentId: null,
+      creatorUserId: ctx.userId,
+      conversationId: null,
+      title: body.title,
+      description: body.description,
+      status: "todo",
+    });
+    return writeJSON({ issue: issueToResponse(created) }, 201);
+  }
+
+  // Assigned issue flow
   const agent = await queries.agent.getAgent(db, body.agent_id, ws.workspaceId, ctx.userId);
   if (!agent) return writeError("agent not found in workspace", 404);
   if (!agent.ownerId) return writeError("agent has no owner", 400);
@@ -124,6 +139,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     conversationId: conversation.id,
     title: body.title,
     description: body.description,
+    status: "in_progress",
   });
 
   const artifactIds: string[] = [];
@@ -167,7 +183,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const taskService = new TaskService(db);
   try {
     const task = await taskService.enqueueTask(
-      created.agentId,
+      body.agent_id,
       conversation.id,
       ws.workspaceId,
       prompt,

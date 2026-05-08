@@ -356,7 +356,7 @@ export const IssueStatusSchema = z.enum([
 ]);
 
 export const CreateIssueRequestSchema = z.object({
-  agent_id: z.string().min(1, "agent_id is required"),
+  agent_id: z.string().min(1).optional(),
   title: z.string().min(1, "title is required").max(200),
   description: z.string().max(20_000).optional().default(""),
 });
@@ -400,9 +400,9 @@ export type IssueCommentApi = z.infer<typeof IssueCommentApiSchema>;
 export const IssueApiSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
-  agent_id: z.string(),
+  agent_id: z.string().nullable(),
   creator_user_id: z.string(),
-  conversation_id: z.string(),
+  conversation_id: z.string().nullable(),
   latest_task_id: z.string().nullable(),
   title: z.string(),
   description: z.string(),

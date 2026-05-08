@@ -9,9 +9,9 @@ export async function createIssue(
   db: Database,
   data: {
     workspaceId: string;
-    agentId: string;
+    agentId: string | null;
     creatorUserId: string;
-    conversationId: string;
+    conversationId: string | null;
     title: string;
     description: string;
     status?: IssueStatusType;
@@ -127,6 +127,7 @@ export async function listIssueMessages(
 ) {
   const row = await getIssue(db, issueId, workspaceId);
   if (!row) return null;
+  if (!row.conversationId) return [];
   const rows = await db
     .select()
     .from(message)

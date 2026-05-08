@@ -658,9 +658,9 @@ export const listIssues = (
 export const createIssue = async (
   workspaceId: string,
   req: CreateIssueRequest & { files?: File[] },
-): Promise<{ issue: Issue; message: Message; task: TaskApi }> => {
+): Promise<{ issue: Issue; message?: Message; task?: TaskApi }> => {
   if (!req.files || req.files.length === 0) {
-    return apiFetch<{ issue: Issue; message: Message; task: TaskApi }>(`/api/issues${wsQuery(workspaceId)}`, {
+    return apiFetch<{ issue: Issue; message?: Message; task?: TaskApi }>(`/api/issues${wsQuery(workspaceId)}`, {
       method: "POST",
       body: JSON.stringify({
         agent_id: req.agent_id,
@@ -671,7 +671,7 @@ export const createIssue = async (
   }
 
   const fd = new FormData();
-  fd.append("agent_id", req.agent_id);
+  if (req.agent_id) fd.append("agent_id", req.agent_id);
   fd.append("title", req.title);
   fd.append("description", req.description ?? "");
   for (const file of req.files) {
@@ -712,7 +712,7 @@ export const createIssue = async (
     throw new ApiError(serverError || "Something went wrong", res.status, details);
   }
 
-  return res.json() as Promise<{ issue: Issue; message: Message; task: TaskApi }>;
+  return res.json() as Promise<{ issue: Issue; message?: Message; task?: TaskApi }>;
 };
 
 export const getIssue = (workspaceId: string, issueId: string) =>

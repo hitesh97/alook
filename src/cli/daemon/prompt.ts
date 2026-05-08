@@ -16,7 +16,9 @@ const ISSUE_NOTICE =
   " Use `alook issue show --agent_id <your_agent_id> --issue_id <issue_id>` to read full context." +
   " Use `alook issue update --agent_id <your_agent_id> --issue_id <issue_id> --status <status>` to change status." +
   " Use `alook issue comment --agent_id <your_agent_id> --issue_id <issue_id> --body <text>` to leave a comment." +
-  " You are responsible for setting the issue status: move to in_progress when working, review when awaiting user feedback, done/closed when finished." +
+  " You are responsible for setting the issue status: move to in_progress when you start working on the task." +
+  " IMPORTANT: You MUST move the status to 'review' when your task is fully complete — this signals to the owner that your work is ready for review." +
+  " Only set 'review' when the task is done, never prematurely. Do not set 'review' for partial work or while still in progress." +
   " Always leave a comment summarizing what you did before changing status.";
 
 function buildDmNotice(name: string, email: string): string {

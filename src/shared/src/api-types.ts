@@ -84,7 +84,7 @@ export interface DeleteCalendarEventRequest {
 }
 
 export interface CreateIssueRequest {
-  agent_id: string;
+  agent_id?: string;
   title: string;
   description?: string;
 }

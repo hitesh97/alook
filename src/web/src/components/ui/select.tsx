@@ -49,10 +49,14 @@ function SelectPopup({
   className,
   children,
   portal = true,
+  alignItemWithTrigger,
+  side,
+  align,
+  sideOffset,
   ...props
-}: SelectPrimitive.Popup.Props & { portal?: boolean }) {
+}: SelectPrimitive.Popup.Props & { portal?: boolean; alignItemWithTrigger?: boolean; side?: "top" | "bottom" | "left" | "right"; align?: "start" | "center" | "end"; sideOffset?: number }) {
   const content = (
-    <SelectPrimitive.Positioner>
+    <SelectPrimitive.Positioner alignItemWithTrigger={alignItemWithTrigger} side={side} align={align} sideOffset={sideOffset}>
       <SelectPrimitive.Popup
         data-slot="select-popup"
         className={cn(

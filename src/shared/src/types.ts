@@ -95,9 +95,9 @@ export interface CalendarEvent {
 export interface Issue {
   id: string;
   workspace_id: string;
-  agent_id: string;
+  agent_id: string | null;
   creator_user_id: string;
-  conversation_id: string;
+  conversation_id: string | null;
   latest_task_id: string | null;
   title: string;
   description: string;
