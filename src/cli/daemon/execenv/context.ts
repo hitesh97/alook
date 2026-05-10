@@ -113,6 +113,7 @@ Below are your direct colleagues. You can reach them via email.
 **Important:**
 - When communicating with a colleague on the **same topic** as an existing email thread, reply to that thread (use --in-reply-to) to keep context together.
 - **When starting a NEW topic or task that is unrelated to any previous email thread, you MUST compose a brand new email (do NOT use --in-reply-to). Never hijack an unrelated thread just because you recently emailed that colleague.** Judge by topic/task relevance, not by recency of communication.
+  - Make sure to send follow-up emails to your colleagues to stop the previous wrong directions or instructions you sent before, don't make your colleague running for nothing.
 `;
     for (let i = 0; i < task.agent.colleagues.length; i++) {
       const c = task.agent.colleagues[i];

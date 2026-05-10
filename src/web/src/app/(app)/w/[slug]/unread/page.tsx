@@ -126,7 +126,7 @@ function SkeletonRow({ promptWidth }: { promptWidth: string }) {
 export default function InboxPage() {
   const { slug, workspaceId } = useWorkspace();
   const { subscribeWs } = useAgentContext();
-  const { refresh: refreshInboxCount, decrement: decrementInboxCount } = useInboxCount();
+  const { count, refresh: refreshInboxCount, decrement: decrementInboxCount } = useInboxCount();
 
   const [items, setItems] = useState<InboxItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,6 +167,17 @@ export default function InboxPage() {
       }
     });
   }, [subscribeWs, loadInitial]);
+
+  const lastSeenCountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (lastSeenCountRef.current !== null && count > lastSeenCountRef.current) {
+      const timer = setTimeout(() => loadInitial({ silent: true }), 1500);
+      lastSeenCountRef.current = count;
+      return () => clearTimeout(timer);
+    }
+    lastSeenCountRef.current = count;
+  }, [count, loadInitial]);
 
   const loadMore = useCallback(async () => {
     if (isFetchingRef.current || !hasMore || items.length === 0) return;
