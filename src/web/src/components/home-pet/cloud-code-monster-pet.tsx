@@ -201,12 +201,12 @@ export function clampPetPosition(
 }
 
 export const CLOUD_CODE_MONSTER_ACTIVITIES: CloudCodeMonsterActivity[] = [
-  { id: "coding", label: "写代码", caption: "在敲一段小 patch" },
-  { id: "sleeping", label: "睡觉", caption: "闭眼打盹" },
-  { id: "reading", label: "看书", caption: "翻一本很厚的 docs" },
-  { id: "phone", label: "玩手机", caption: "盯着小屏幕发光" },
-  { id: "thinking", label: "发呆", caption: "处理一点后台思考" },
-  { id: "snacking", label: "吃零食", caption: "嚼一点能量块" },
+  { id: "coding", label: "Coding", caption: "Tapping through a small patch" },
+  { id: "sleeping", label: "Sleeping", caption: "Taking a short workspace nap" },
+  { id: "reading", label: "Reading", caption: "Flipping through a thick doc" },
+  { id: "phone", label: "On phone", caption: "Checking a tiny glowing screen" },
+  { id: "thinking", label: "Thinking", caption: "Processing a background thought" },
+  { id: "snacking", label: "Snacking", caption: "Chewing on a little energy block" },
 ];
 
 export const CLOUD_CODE_MONSTER_AUTOWALK_ACTIVITY_IDS: readonly CloudCodeMonsterActivityId[] = [
@@ -520,7 +520,7 @@ const CLOUD_CODE_MONSTER_PET_PRESET_BASES: CloudCodeMonsterPetPreset[] = [
   },
   {
     id: "pet-19",
-    name: "Soot Sprite",
+    name: "Dust Puff",
     group: "Tiny Soot",
     feature: "soot",
     bodyTop: "#34343a",
@@ -717,48 +717,48 @@ const CLOUD_CODE_MONSTER_PET_PRESET_BASES: CloudCodeMonsterPetPreset[] = [
   },
 ];
 
-const LICENSED_IP_PRESET_OVERRIDES = [
-  { id: "pet-02", name: "Doraemon", group: "Licensed IP", feature: "bell", shape: "doraemon" },
-  { id: "pet-03", name: "Pikachu", group: "Licensed IP", feature: "bolt", shape: "pikachu" },
-  { id: "pet-04", name: "Kirby", group: "Licensed IP", feature: "star", shape: "kirby" },
-  { id: "pet-05", name: "Bulbasaur", group: "Licensed IP", feature: "leaf", shape: "bulbasaur" },
-  { id: "pet-06", name: "Charmander", group: "Licensed IP", feature: "flame", shape: "charmander" },
-  { id: "pet-07", name: "Squirtle", group: "Licensed IP", feature: "fins", shape: "squirtle" },
-  { id: "pet-08", name: "Minecraft Steve", group: "Licensed IP", feature: "visor", shape: "minecraft-steve" },
-  { id: "pet-09", name: "Minecraft Creeper", group: "Licensed IP", feature: "mask", shape: "minecraft-creeper" },
-  { id: "pet-10", name: "Minecraft Zombie", group: "Licensed IP", feature: "visor", shape: "minecraft-zombie" },
-  { id: "pet-11", name: "Toad", group: "Licensed IP", feature: "mushroom", shape: "toad" },
-  { id: "pet-12", name: "Sonic", group: "Licensed IP", feature: "spin", shape: "sonic" },
-  { id: "pet-13", name: "Pac-Man", group: "Licensed IP", feature: "chomp", shape: "pacman" },
-  { id: "pet-14", name: "Boo", group: "Licensed IP", feature: "ghost", shape: "boo" },
-  { id: "pet-15", name: "Mario", group: "Licensed IP", feature: "cap", shape: "mario" },
-  { id: "pet-16", name: "Winnie the Pooh", group: "Licensed IP", feature: "ears", shape: "pooh" },
-  { id: "pet-17", name: "Hello Kitty", group: "Licensed IP", feature: "bow", shape: "hello-kitty" },
-  { id: "pet-18", name: "My Melody", group: "Licensed IP", feature: "hood", shape: "my-melody" },
-  { id: "pet-19", name: "Kuromi", group: "Licensed IP", feature: "mask", shape: "kuromi" },
-  { id: "pet-20", name: "Totoro", group: "Licensed IP", feature: "ears", shape: "totoro" },
-  { id: "pet-21", name: "Soot Sprite", group: "Licensed IP", feature: "soot", shape: "soot-sprite" },
-  { id: "pet-22", name: "Luffy", group: "Licensed IP", feature: "straw", shape: "luffy" },
-  { id: "pet-23", name: "Naruto", group: "Licensed IP", feature: "ninja", shape: "naruto" },
-  { id: "pet-24", name: "Goku", group: "Licensed IP", feature: "pearl", shape: "goku" },
-  { id: "pet-25", name: "Sailor Moon", group: "Licensed IP", feature: "wand", shape: "sailor-moon" },
-  { id: "pet-26", name: "Gundam", group: "Licensed IP", feature: "mecha", shape: "gundam" },
-  { id: "pet-27", name: "Dragon Quest Slime", group: "Licensed IP", feature: "slime", shape: "dragon-quest-slime" },
-  { id: "pet-28", name: "Inkling", group: "Licensed IP", feature: "ink", shape: "inkling" },
-  { id: "pet-29", name: "Snoopy", group: "Licensed IP", feature: "ears", shape: "snoopy" },
-  { id: "pet-30", name: "Chopper", group: "Licensed IP", feature: "horns", shape: "chopper" },
+const INSPIRED_PRESET_OVERRIDES = [
+  { id: "pet-02", name: "Pocket Bell Bot", group: "Inspired Mascots", feature: "bell", shape: "doraemon" },
+  { id: "pet-03", name: "Spark Bolt Pal", group: "Inspired Mascots", feature: "bolt", shape: "pikachu" },
+  { id: "pet-04", name: "Star Puff", group: "Inspired Mascots", feature: "star", shape: "kirby" },
+  { id: "pet-05", name: "Leaf Bud", group: "Inspired Mascots", feature: "leaf", shape: "bulbasaur" },
+  { id: "pet-06", name: "Tiny Flame", group: "Inspired Mascots", feature: "flame", shape: "charmander" },
+  { id: "pet-07", name: "Shell Fin", group: "Inspired Mascots", feature: "fins", shape: "squirtle" },
+  { id: "pet-08", name: "Block Builder", group: "Inspired Mascots", feature: "visor", shape: "minecraft-steve" },
+  { id: "pet-09", name: "Block Hiss", group: "Inspired Mascots", feature: "mask", shape: "minecraft-creeper" },
+  { id: "pet-10", name: "Block Walker", group: "Inspired Mascots", feature: "visor", shape: "minecraft-zombie" },
+  { id: "pet-11", name: "Mushroom Pal", group: "Inspired Mascots", feature: "mushroom", shape: "toad" },
+  { id: "pet-12", name: "Blue Spin", group: "Inspired Mascots", feature: "spin", shape: "sonic" },
+  { id: "pet-13", name: "Arcade Chomp", group: "Inspired Mascots", feature: "chomp", shape: "pacman" },
+  { id: "pet-14", name: "Peek Ghost", group: "Inspired Mascots", feature: "ghost", shape: "boo" },
+  { id: "pet-15", name: "Red Cap Jumper", group: "Inspired Mascots", feature: "cap", shape: "mario" },
+  { id: "pet-16", name: "Honey Cub", group: "Inspired Mascots", feature: "ears", shape: "pooh" },
+  { id: "pet-17", name: "Ribbon Cat", group: "Inspired Mascots", feature: "bow", shape: "hello-kitty" },
+  { id: "pet-18", name: "Cozy Hood Bunny", group: "Inspired Mascots", feature: "hood", shape: "my-melody" },
+  { id: "pet-19", name: "Imp Hood", group: "Inspired Mascots", feature: "mask", shape: "kuromi" },
+  { id: "pet-20", name: "Forest Neighbor", group: "Inspired Mascots", feature: "ears", shape: "totoro" },
+  { id: "pet-21", name: "Dust Puff", group: "Inspired Mascots", feature: "soot", shape: "soot-sprite" },
+  { id: "pet-22", name: "Straw Voyager", group: "Inspired Mascots", feature: "straw", shape: "luffy" },
+  { id: "pet-23", name: "Leaf Runner", group: "Inspired Mascots", feature: "ninja", shape: "naruto" },
+  { id: "pet-24", name: "Energy Pearl", group: "Inspired Mascots", feature: "pearl", shape: "goku" },
+  { id: "pet-25", name: "Moon Wand", group: "Inspired Mascots", feature: "wand", shape: "sailor-moon" },
+  { id: "pet-26", name: "Mecha Guard", group: "Inspired Mascots", feature: "mecha", shape: "gundam" },
+  { id: "pet-27", name: "Teardrop Slime", group: "Inspired Mascots", feature: "slime", shape: "dragon-quest-slime" },
+  { id: "pet-28", name: "Ink Runner", group: "Inspired Mascots", feature: "ink", shape: "inkling" },
+  { id: "pet-29", name: "Little Beagle", group: "Inspired Mascots", feature: "ears", shape: "snoopy" },
+  { id: "pet-30", name: "Tiny Antler", group: "Inspired Mascots", feature: "horns", shape: "chopper" },
 ] satisfies Array<
   Pick<CloudCodeMonsterPetPreset, "id" | "name" | "group" | "feature" | "shape">
 >;
 
-const LICENSED_IP_PRESET_OVERRIDE_BY_ID = new Map(
-  LICENSED_IP_PRESET_OVERRIDES.map((preset) => [preset.id, preset])
+const INSPIRED_PRESET_OVERRIDE_BY_ID = new Map(
+  INSPIRED_PRESET_OVERRIDES.map((preset) => [preset.id, preset])
 );
 
 export const CLOUD_CODE_MONSTER_PET_PRESETS: CloudCodeMonsterPetPreset[] =
   CLOUD_CODE_MONSTER_PET_PRESET_BASES.map((preset) => ({
     ...preset,
-    ...LICENSED_IP_PRESET_OVERRIDE_BY_ID.get(preset.id),
+    ...INSPIRED_PRESET_OVERRIDE_BY_ID.get(preset.id),
   }));
 
 export function getCloudCodeMonsterPreset(presetId?: string | null) {
@@ -3210,6 +3210,11 @@ export function CloudCodeMonsterPet({
             key={footprint.id}
             className="cloud-code-monster-pet-footprint"
             data-side={footprint.side}
+            onAnimationEnd={() => {
+              setFootprints((currentFootprints) =>
+                currentFootprints.filter((item) => item.id !== footprint.id)
+              );
+            }}
             style={
               {
                 "--monster-footprint-x": `${footprint.x}px`,
@@ -3225,10 +3230,10 @@ export function CloudCodeMonsterPet({
       <aside
         aria-label={`${preset.name} pixel PET: ${
           fainted
-            ? "晕倒"
+            ? "fainted"
             : isPeeking
-              ? "偷看工作"
-              : displayedActivity?.label ?? "默认状态"
+              ? "peeking at work"
+              : displayedActivity?.label ?? "idle"
         }`}
         className="cloud-code-monster-pet"
         data-activity={displayedActivity?.id ?? "idle"}
@@ -3289,10 +3294,10 @@ export function CloudCodeMonsterPet({
           onLostPointerCapture={stopDragging}
           aria-label={`Claude Code pixel monster is ${
             fainted
-              ? "晕倒"
+              ? "fainted"
               : isPeeking
-                ? "偷看工作"
-                : displayedActivity?.label ?? "默认状态"
+                ? "peeking at work"
+                : displayedActivity?.label ?? "idle"
           }. Click to ${
             displayedActivity || fainted || isPeeking ? "interrupt it" : "notice it"
           }, drag to make it walk.`}

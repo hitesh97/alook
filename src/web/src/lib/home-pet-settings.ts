@@ -14,7 +14,7 @@ export type HomePetSettings = {
 };
 
 const DEFAULT_HOME_PET_SETTINGS: HomePetSettings = {
-  enabled: true,
+  enabled: false,
   displayScope: "home",
 };
 

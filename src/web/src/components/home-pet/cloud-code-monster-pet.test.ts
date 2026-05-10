@@ -26,6 +26,7 @@ import {
   shouldFaintFromMonsterShake,
   shouldRefreshCloudCodeMonsterActivity,
 } from "./cloud-code-monster-pet";
+import { readHomePetSettings } from "../../lib/home-pet-settings";
 
 function webRoot() {
   return process.cwd().endsWith(`${path.sep}src${path.sep}web`)
@@ -47,13 +48,55 @@ describe("Cloud Code monster PET helpers", () => {
 
   it("keeps production presets selectable and validates fallback behavior", () => {
     const presetIds = new Set(CLOUD_CODE_MONSTER_PET_PRESETS.map((preset) => preset.id));
+    const publicNames = CLOUD_CODE_MONSTER_PET_PRESETS.map((preset) => preset.name);
+    const publicGroups = CLOUD_CODE_MONSTER_PET_PRESETS.map((preset) => preset.group);
+    const sensitiveNames = [
+      "Doraemon",
+      "Pikachu",
+      "Kirby",
+      "Bulbasaur",
+      "Charmander",
+      "Squirtle",
+      "Minecraft Steve",
+      "Minecraft Creeper",
+      "Minecraft Zombie",
+      "Toad",
+      "Sonic",
+      "Pac-Man",
+      "Boo",
+      "Mario",
+      "Winnie the Pooh",
+      "Hello Kitty",
+      "My Melody",
+      "Kuromi",
+      "Totoro",
+      "Soot Sprite",
+      "Luffy",
+      "Naruto",
+      "Goku",
+      "Sailor Moon",
+      "Gundam",
+      "Dragon Quest Slime",
+      "Inkling",
+      "Snoopy",
+      "Chopper",
+    ];
 
     expect(CLOUD_CODE_MONSTER_PET_PRESETS).toHaveLength(30);
     expect(presetIds.size).toBe(30);
+    expect(publicNames).not.toEqual(expect.arrayContaining(sensitiveNames));
+    expect(publicGroups).not.toContain("Licensed IP");
     expect(getCloudCodeMonsterPreset("pet-12").id).toBe("pet-12");
     expect(getCloudCodeMonsterPreset("missing").id).toBe(
       CLOUD_CODE_MONSTER_PET_PRESETS[0]!.id
     );
+  });
+
+  it("defaults to opt-in behavior", () => {
+    expect(readHomePetSettings()).toMatchObject({
+      enabled: false,
+      displayScope: "home",
+    });
   });
 
   it("refreshes visible activity only after the away threshold", () => {

@@ -41,7 +41,7 @@ const DISPLAY_SCOPE_OPTIONS: Array<{
 ];
 
 export function PetTab() {
-  const [enabled, setEnabled] = useState(true);
+  const [enabled, setEnabled] = useState(false);
   const [displayScope, setDisplayScope] = useState<HomePetDisplayScope>("home");
   const [selectedPresetId, setSelectedPresetId] = useState(
     CLOUD_CODE_MONSTER_PET_PRESETS[0]!.id
@@ -98,7 +98,7 @@ export function PetTab() {
                 Enable pet
               </Label>
               <p className="text-xs text-muted-foreground">
-                Keep the workspace companion visible when enabled
+                Off by default. Turn it on when you want the workspace companion.
               </p>
             </div>
             <Switch
