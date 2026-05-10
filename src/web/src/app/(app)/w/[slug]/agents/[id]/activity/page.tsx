@@ -22,6 +22,7 @@ import {
   RotateCw,
   Loader2,
 } from "lucide-react";
+import { ScrollToBottomButton } from "@/components/ui/scroll-to-bottom-button";
 
 const ACTIVITY_LIMIT = 30;
 
@@ -339,47 +340,50 @@ export default function AgentActivityPage() {
       </div>
 
       {/* Scroll container */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto thin-scrollbar"
-        onScroll={handleScroll}
-      >
-        {loading ? (
-          <div className="flex flex-col">
-            <SkeletonRow promptWidth="40%" />
-            <SkeletonRow promptWidth="55%" />
-            <SkeletonRow promptWidth="48%" />
-          </div>
-        ) : tasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
-            <History className="size-8 text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground">No activity yet</p>
-            {(statusFilter || typeFilter) && (
-              <p className="text-xs text-muted-foreground/60 mt-1">
-                Try changing your filters
-              </p>
-            )}
-          </div>
-        ) : (
-          <div className="flex flex-col animate-[fade-up_400ms_ease-out_both]">
-            {loadingMore && (
-              <>
-                <SkeletonRow promptWidth="48%" />
-                <SkeletonRow promptWidth="40%" />
-              </>
-            )}
-            {tasks.map((task) => (
-              <ActivityRow
-                key={task.id}
-                task={task}
-                slug={slug}
-                agentId={agentId}
-                workspaceId={workspaceId}
-                onRetry={loadInitial}
-              />
-            ))}
-          </div>
-        )}
+      <div className="relative flex-1 min-h-0">
+        <div
+          ref={scrollRef}
+          className="h-full overflow-y-auto thin-scrollbar"
+          onScroll={handleScroll}
+        >
+          {loading ? (
+            <div className="flex flex-col">
+              <SkeletonRow promptWidth="40%" />
+              <SkeletonRow promptWidth="55%" />
+              <SkeletonRow promptWidth="48%" />
+            </div>
+          ) : tasks.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full animate-[fade-up_400ms_ease-out_both]">
+              <History className="size-8 text-muted-foreground mb-3" />
+              <p className="text-sm text-muted-foreground">No activity yet</p>
+              {(statusFilter || typeFilter) && (
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  Try changing your filters
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col animate-[fade-up_400ms_ease-out_both]">
+              {loadingMore && (
+                <>
+                  <SkeletonRow promptWidth="48%" />
+                  <SkeletonRow promptWidth="40%" />
+                </>
+              )}
+              {tasks.map((task) => (
+                <ActivityRow
+                  key={task.id}
+                  task={task}
+                  slug={slug}
+                  agentId={agentId}
+                  workspaceId={workspaceId}
+                  onRetry={loadInitial}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <ScrollToBottomButton scrollRef={scrollRef} />
       </div>
     </>
   );

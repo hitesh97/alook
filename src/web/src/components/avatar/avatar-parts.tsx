@@ -121,36 +121,36 @@ export interface NoseDef {
 export const Noses: Record<string, NoseDef> = {
   dot: {
     name: "Dot",
-    render: (c = DEFAULT_FACE_COLOR) => <circle cx="0" cy="0" r="3" fill={c} />,
+    render: (c = DEFAULT_FACE_COLOR) => <circle cx="0" cy="0" r="4.5" fill={c} />,
   },
   dash: {
     name: "Dash",
-    render: (c = DEFAULT_FACE_COLOR) => <line x1="-7" y1="0" x2="7" y2="0" stroke={c} strokeWidth="4" strokeLinecap="round" />,
+    render: (c = DEFAULT_FACE_COLOR) => <line x1="-10" y1="0" x2="10" y2="0" stroke={c} strokeWidth="5" strokeLinecap="round" />,
   },
   hookL: {
     name: "Hook",
-    render: (c = DEFAULT_FACE_COLOR) => <path d="M-8 0 Q-4 5 0 1 Q4 5 8 0" fill="none" stroke={c} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />,
+    render: (c = DEFAULT_FACE_COLOR) => <path d="M-11 0 Q-5.5 7 0 1.5 Q5.5 7 11 0" fill="none" stroke={c} strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />,
   },
   smile: {
     name: "Smile",
-    render: (c = DEFAULT_FACE_COLOR) => <path d="M-8 0 Q0 8 8 0" fill="none" stroke={c} strokeWidth="4" strokeLinecap="round" />,
+    render: (c = DEFAULT_FACE_COLOR) => <path d="M-11 0 Q0 11 11 0" fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" />,
   },
   caret: {
     name: "Caret",
     render: (c = DEFAULT_FACE_COLOR) => (
       <g>
-        <path d="M-7 0 Q0 6 7 0" fill="none" stroke={c} strokeWidth="3.5" strokeLinecap="round" />
-        <ellipse cx="2" cy="5" rx="3" ry="3.5" fill="#f472b6" />
+        <path d="M-10 0 Q0 8 10 0" fill="none" stroke={c} strokeWidth="4.5" strokeLinecap="round" />
+        <ellipse cx="3" cy="6" rx="4" ry="4.5" fill="#f472b6" />
       </g>
     ),
   },
   arrow: {
     name: "Arrow",
-    render: (c = DEFAULT_FACE_COLOR) => <ellipse cx="0" cy="0" rx="4.5" ry="5.5" fill={c} />,
+    render: (c = DEFAULT_FACE_COLOR) => <ellipse cx="0" cy="0" rx="6" ry="7.5" fill={c} />,
   },
   oh: {
     name: "o",
-    render: (c = DEFAULT_FACE_COLOR) => <ellipse cx="0" cy="0" rx="5" ry="5.5" fill="none" stroke={c} strokeWidth="3.5" />,
+    render: (c = DEFAULT_FACE_COLOR) => <ellipse cx="0" cy="0" rx="7" ry="7.5" fill="none" stroke={c} strokeWidth="4.5" />,
   },
 };
 
@@ -179,47 +179,47 @@ const eye = (l: (c: string) => ReactNode, r?: (c: string) => ReactNode) => {
 export const Eyes: Record<string, EyeDef> = {
   dots: {
     name: "Dots",
-    render: eye((c) => <circle cx="0" cy="0" r="5" fill={c} />),
+    render: eye((c) => <circle cx="0" cy="0" r="7" fill={c} />),
   },
   big: {
     name: "Big",
     render: eye((c) => (
       <g>
-        <circle cx="0" cy="0" r="7.5" fill={c} />
-        <circle cx="2" cy="-2" r="2.5" fill="rgba(255,255,255,0.9)" />
+        <circle cx="0" cy="0" r="10" fill={c} />
+        <circle cx="2.5" cy="-3" r="3.5" fill="rgba(255,255,255,0.9)" />
       </g>
     )),
   },
   rings: {
     name: "Rings",
-    render: eye((c) => <ellipse cx="0" cy="0" rx="6" ry="7" fill="none" stroke={c} strokeWidth="3.5" />),
+    render: eye((c) => <ellipse cx="0" cy="0" rx="8.5" ry="9.5" fill="none" stroke={c} strokeWidth="4.5" />),
   },
   arches: {
     name: "Arches",
-    render: eye((c) => <path d="M-7 2 Q0 -6 7 2" fill="none" stroke={c} strokeWidth="4" strokeLinecap="round" />),
+    render: eye((c) => <path d="M-10 2 Q0 -9 10 2" fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" />),
   },
   lines: {
     name: "Lines",
-    render: eye((c) => <path d="M-7 0 Q0 -4 7 0" fill="none" stroke={c} strokeWidth="4" strokeLinecap="round" />),
+    render: eye((c) => <path d="M-10 0 Q0 -6 10 0" fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" />),
   },
   happy: {
     name: "Happy",
-    render: eye((c) => <path d="M-7 4 Q0 -8 7 4" fill="none" stroke={c} strokeWidth="4" strokeLinecap="round" />),
+    render: eye((c) => <path d="M-10 5 Q0 -11 10 5" fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" />),
   },
   sleepy: {
     name: "Sleepy",
-    render: eye((c) => <path d="M-7 -2 Q0 6 7 -2" fill="none" stroke={c} strokeWidth="4" strokeLinecap="round" />),
+    render: eye((c) => <path d="M-10 -2 Q0 8 10 -2" fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" />),
   },
   shy: {
     name: "Shy",
-    render: eye((c) => <ellipse cx="0" cy="0" rx="6" ry="7" fill={c} />),
+    render: eye((c) => <ellipse cx="0" cy="0" rx="8.5" ry="9.5" fill={c} />),
   },
   wink: {
     name: "Wink",
     render: (dx: number, c = DEFAULT_FACE_COLOR) => (
       <g>
-        <g transform={`translate(${-dx}, 0)`}><circle cx="0" cy="0" r="5" fill={c} /></g>
-        <g transform={`translate(${dx}, 0)`}><path d="M-7 2 Q0 -6 7 2" fill="none" stroke={c} strokeWidth="4" strokeLinecap="round" /></g>
+        <g transform={`translate(${-dx}, 0)`}><circle cx="0" cy="0" r="7" fill={c} /></g>
+        <g transform={`translate(${dx}, 0)`}><path d="M-10 2 Q0 -9 10 2" fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" /></g>
       </g>
     ),
   },
@@ -302,8 +302,8 @@ export function AvatarRenderer({ config, size = 200, className }: AvatarRenderer
   const faceColor = bgEntry.faceColor;
 
   const { cx, cy, w } = sh.face;
-  const eyeDx = Math.max(11, w * 0.22);
-  const eyeY = cy - Math.max(10, w * 0.14);
+  const eyeDx = Math.max(13, w * 0.24);
+  const eyeY = cy - Math.max(12, w * 0.16);
 
   return (
     <svg
@@ -332,7 +332,7 @@ export function AvatarRenderer({ config, size = 200, className }: AvatarRenderer
       <g transform="translate(100,100) scale(0.8) translate(-100,-100)">
         <g data-avatar-shape="" filter={`url(#sh-${uid})`}>{sh.render()}</g>
         {ey && <g transform={`translate(${cx}, ${eyeY})`}><g data-avatar-eyes="">{ey.render(eyeDx, faceColor)}</g></g>}
-        {no && <g transform={`translate(${cx}, ${cy + 5})`}><g data-avatar-nose="">{no.render(faceColor)}</g></g>}
+        {no && <g transform={`translate(${cx}, ${cy + 7})`}><g data-avatar-nose="">{no.render(faceColor)}</g></g>}
       </g>
     </svg>
   );

@@ -176,7 +176,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const isHome = pathname === `${prefix}/home`;
   const isRuntimes = pathname === `${prefix}/runtimes`;
   const isCalendar = pathname === `${prefix}/calendar`;
-  const isInbox = pathname.startsWith(`${prefix}/inbox`);
+  const isInbox = pathname.startsWith(`${prefix}/unread`);
   const isIssues = pathname.startsWith(`${prefix}/issues`);
   const isSettings = pathname === `${prefix}/settings`;
   const isCreateAgent = pathname === `${prefix}/agents/new`;
@@ -268,7 +268,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
           <TooltipTrigger render={
             <button
               type="button"
-              onClick={() => { router.push(`${prefix}/inbox`); onNavigate?.(); }}
+              onClick={() => { router.push(`${prefix}/unread`); onNavigate?.(); }}
               className={cn(
                 "relative flex items-center justify-center size-10 rounded-xl transition-colors duration-200 cursor-pointer",
                 "text-muted-foreground hover:text-foreground hover:bg-accent",
@@ -283,7 +283,7 @@ export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
               </span>
             )}
           </TooltipTrigger>
-          <TooltipContent side="right">Inbox</TooltipContent>
+          <TooltipContent side="right">Unread</TooltipContent>
         </Tooltip>
 
         <Tooltip>

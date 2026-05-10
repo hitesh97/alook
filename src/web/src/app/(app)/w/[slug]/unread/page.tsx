@@ -202,7 +202,7 @@ export default function InboxPage() {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between border-b border-border/50 px-3 md:px-5 py-2.5 gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-sm font-medium">Inbox</h1>
+          <h1 className="text-sm font-medium">Unread</h1>
           <p className="text-xs text-muted-foreground hidden md:block">
             Unread responses from your agents.
           </p>

@@ -44,6 +44,7 @@ import { ArtifactSheet, formatSize } from "@/components/agent-chat/artifact-shee
 import { EmailEventSheet } from "@/components/agent-chat/email-event-sheet";
 import { isPreviewable, getArtifactUrl } from "@/components/artifact-content-renderer";
 import { FollowUpBuffer } from "@/components/agent-chat/follow-up-buffer";
+import { ScrollToBottomButton } from "@/components/ui/scroll-to-bottom-button";
 import { MessageItem } from "@/components/agent-chat/message-list";
 import { AgentPreviewCard } from "@/components/agent-preview-card";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -1335,117 +1336,120 @@ export function AgentChatView() {
         </button>
       )}
       {/* Messages */}
-      <div
-        className="flex-1 overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar"
-        ref={scrollRef}
-        onScroll={handleScroll}
-        onClick={(e) => {
-          const btn = (e.target as HTMLElement).closest(
-            '[data-streamdown="code-block-actions"] button'
-          );
-          if (btn) toast.success("Copied to clipboard");
-        }}
-      >
-        <div className="mx-auto max-w-2xl py-6 space-y-4">
-          {canLoadMore && !loadingMore && (
-            <div className="flex justify-center py-2">
-              <button
-                onClick={() => loadOlderMessages()}
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Load earlier messages
-              </button>
-            </div>
-          )}
-          {loadingMore && (
-            <div className="flex justify-center py-2">
-              <Loader2 className="size-4 animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {messages.length === 0 && !activeTask && (() => {
-            const agent = agents.find(a => a.id === agentId);
-            const isNewAgent = agent?.created_at && (renderNow - new Date(agent.created_at).getTime() < 5 * 60 * 1000);
-            const hasEmailTask = (activeTaskCounts[agentId] ?? 0) > 0;
-
-            if (isNewAgent && hasEmailTask && activeChannel === "default") {
-              return (
-                <div className="flex flex-col items-center justify-center py-20 gap-3 animate-[fade-up_400ms_ease-out_both]">
-                  <div className="relative animate-bounce">
-                    <Mail className="size-8 text-primary" />
-                    <span className="absolute -top-1 -right-1 flex size-3">
-                      <span className="animate-ping absolute inline-flex size-full rounded-full bg-primary/60" />
-                      <span className="relative inline-flex size-3 rounded-full bg-primary" />
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground text-center max-w-xs">
-                    Your agent is sending you a welcome email.
-                  </p>
-                  <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
-                    Wait for the email task in the top-left to complete, then check your inbox. Or send a message below to start chatting.
-                  </p>
-                </div>
-              );
-            }
-
-            return (
-              <p className="text-center text-muted-foreground py-20 text-sm">
-                Send a message to start chatting with the agent.
-              </p>
+      <div className="relative flex-1 min-h-0">
+        <div
+          className="h-full overflow-y-auto overflow-x-hidden px-3 md:px-5 thin-scrollbar"
+          ref={scrollRef}
+          onScroll={handleScroll}
+          onClick={(e) => {
+            const btn = (e.target as HTMLElement).closest(
+              '[data-streamdown="code-block-actions"] button'
             );
-          })()}
+            if (btn) toast.success("Copied to clipboard");
+          }}
+        >
+          <div className="mx-auto max-w-2xl py-6 space-y-4">
+            {canLoadMore && !loadingMore && (
+              <div className="flex justify-center py-2">
+                <button
+                  onClick={() => loadOlderMessages()}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Load earlier messages
+                </button>
+              </div>
+            )}
+            {loadingMore && (
+              <div className="flex justify-center py-2">
+                <Loader2 className="size-4 animate-spin text-muted-foreground" />
+              </div>
+            )}
 
-          {timeline.map((item) => {
-            if (item.kind === "nap") {
-              return <NapSeparator key={item.data.id} agentName={agentName} />;
-            }
+            {messages.length === 0 && !activeTask && (() => {
+              const agent = agents.find(a => a.id === agentId);
+              const isNewAgent = agent?.created_at && (renderNow - new Date(agent.created_at).getTime() < 5 * 60 * 1000);
+              const hasEmailTask = (activeTaskCounts[agentId] ?? 0) > 0;
 
-            if (item.kind === "artifact") {
+              if (isNewAgent && hasEmailTask && activeChannel === "default") {
+                return (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3 animate-[fade-up_400ms_ease-out_both]">
+                    <div className="relative animate-bounce">
+                      <Mail className="size-8 text-primary" />
+                      <span className="absolute -top-1 -right-1 flex size-3">
+                        <span className="animate-ping absolute inline-flex size-full rounded-full bg-primary/60" />
+                        <span className="relative inline-flex size-3 rounded-full bg-primary" />
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground text-center max-w-xs">
+                      Your agent is sending you a welcome email.
+                    </p>
+                    <p className="text-xs text-muted-foreground/60 text-center max-w-xs">
+                      Wait for the email task in the top-left to complete, then check your inbox. Or send a message below to start chatting.
+                    </p>
+                  </div>
+                );
+              }
+
               return (
-                <ArtifactCard
-                  key={`artifact-${item.data.id}`}
-                  artifact={item.data}
-                  onClick={handleArtifactClick}
+                <p className="text-center text-muted-foreground py-20 text-sm">
+                  Send a message to start chatting with the agent.
+                </p>
+              );
+            })()}
+
+            {timeline.map((item) => {
+              if (item.kind === "nap") {
+                return <NapSeparator key={item.data.id} agentName={agentName} />;
+              }
+
+              if (item.kind === "artifact") {
+                return (
+                  <ArtifactCard
+                    key={`artifact-${item.data.id}`}
+                    artifact={item.data}
+                    onClick={handleArtifactClick}
+                  />
+                );
+              }
+
+              const msg = item.data;
+              return (
+                <MessageItem
+                  key={msg.id}
+                  msg={msg}
+                  agents={agents}
+                  artifacts={artifacts}
+                  activeTask={activeTask}
+                  taskMessages={taskMessages}
+                  connectionLost={connectionLost}
+                  isLastMessage={messages.length > 0 && messages[messages.length - 1].id === msg.id}
+                  stepCount={msg.task_id ? (stepCounts[msg.task_id] ?? 0) : 0}
+                  targetConvId={targetConvId}
+                  workspaceId={workspaceId}
+                  conversationType={conversation?.type}
+                  pendingFilesByMessage={pendingFilesByMessage}
+                  onArtifactClick={handleArtifactClick}
+                  onEmailClick={(emailId) => {
+                    setSelectedEmailId(emailId);
+                    setEmailSheetOpen(true);
+                  }}
+                  onRetry={handleRetryTask}
+                  mentionComponents={MENTION_COMPONENTS}
                 />
               );
-            }
+            })}
 
-            const msg = item.data;
-            return (
-              <MessageItem
-                key={msg.id}
-                msg={msg}
-                agents={agents}
-                artifacts={artifacts}
-                activeTask={activeTask}
-                taskMessages={taskMessages}
+            {/* Show trace while task is in progress (no assistant message yet) */}
+            {activeTask && !["completed", "failed", "cancelled", "superseded"].includes(activeTask.status) && (
+              <TaskStream
+                task={activeTask}
+                messages={taskMessages}
                 connectionLost={connectionLost}
-                isLastMessage={messages.length > 0 && messages[messages.length - 1].id === msg.id}
-                stepCount={msg.task_id ? (stepCounts[msg.task_id] ?? 0) : 0}
-                targetConvId={targetConvId}
-                workspaceId={workspaceId}
-                conversationType={conversation?.type}
-                pendingFilesByMessage={pendingFilesByMessage}
-                onArtifactClick={handleArtifactClick}
-                onEmailClick={(emailId) => {
-                  setSelectedEmailId(emailId);
-                  setEmailSheetOpen(true);
-                }}
-                onRetry={handleRetryTask}
-                mentionComponents={MENTION_COMPONENTS}
               />
-            );
-          })}
-
-          {/* Show trace while task is in progress (no assistant message yet) */}
-          {activeTask && !["completed", "failed", "cancelled", "superseded"].includes(activeTask.status) && (
-            <TaskStream
-              task={activeTask}
-              messages={taskMessages}
-              connectionLost={connectionLost}
-            />
-          )}
+            )}
+          </div>
         </div>
+        <ScrollToBottomButton scrollRef={scrollRef} />
       </div>
 
       {/* Follow-up buffer indicator */}
