@@ -1,10 +1,19 @@
 "use client";
 
 import { type RefObject } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 
 import { useHomePetSettings } from "@/lib/home-pet-settings";
-import { CloudCodeMonsterPet } from "./cloud-code-monster-pet";
+import type { CloudCodeMonsterPetProps } from "./cloud-code-monster-pet";
+
+const CloudCodeMonsterPet = dynamic<CloudCodeMonsterPetProps>(
+  () =>
+    import("./cloud-code-monster-pet").then(
+      (module) => module.CloudCodeMonsterPet
+    ),
+  { ssr: false }
+);
 
 type WorkspacePetLayerProps = {
   boundaryRef: RefObject<HTMLElement | null>;

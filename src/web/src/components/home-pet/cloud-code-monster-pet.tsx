@@ -4,11 +4,14 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+
+import styles from "./cloud-code-monster-pet.module.css";
 
 import {
   calculateMonsterWalkIntensity,
@@ -121,7 +124,7 @@ function getPointerPoint(
   };
 }
 
-type CloudCodeMonsterPetProps = {
+export type CloudCodeMonsterPetProps = {
   boundaryRef: RefObject<HTMLElement | null>;
   initialPosition?: PetPoint;
   activityTriggerMode?: CloudCodeMonsterActivityTriggerMode;
@@ -130,13 +133,70 @@ type CloudCodeMonsterPetProps = {
   peekTargets?: CloudCodeMonsterPeekTarget[];
 };
 
+const EMPTY_PEEK_TARGETS: CloudCodeMonsterPeekTarget[] = [];
+type PetTimerKey =
+  | "reaction"
+  | "shake"
+  | "faint"
+  | "autonomousWalk"
+  | "peek"
+  | "peekStop"
+  | "notification"
+  | "walkSettle";
+
+function createPetTimerRecord(): Record<PetTimerKey, number | null> {
+  return {
+    reaction: null,
+    shake: null,
+    faint: null,
+    autonomousWalk: null,
+    peek: null,
+    peekStop: null,
+    notification: null,
+    walkSettle: null,
+  };
+}
+
+function usePetTimers() {
+  const timersRef = useRef(createPetTimerRecord());
+
+  const clearPetTimer = useCallback((key: PetTimerKey) => {
+    const timerId = timersRef.current[key];
+    if (timerId === null) {
+      return;
+    }
+
+    window.clearTimeout(timerId);
+    timersRef.current[key] = null;
+  }, []);
+
+  const setPetTimer = useCallback(
+    (key: PetTimerKey, callback: () => void, delayMs: number) => {
+      clearPetTimer(key);
+      timersRef.current[key] = window.setTimeout(() => {
+        timersRef.current[key] = null;
+        callback();
+      }, delayMs);
+    },
+    [clearPetTimer]
+  );
+
+  const clearAllPetTimers = useCallback(() => {
+    for (const key of Object.keys(timersRef.current) as PetTimerKey[]) {
+      clearPetTimer(key);
+    }
+  }, [clearPetTimer]);
+
+  return { clearAllPetTimers, clearPetTimer, setPetTimer };
+}
+
 export function CloudCodeMonsterPet({
   boundaryRef,
   initialPosition,
   activityTriggerMode = "global",
   previewComebackToken = 0,
   notificationToken = 0,
-  peekTargets = [],
+  peekTargets = EMPTY_PEEK_TARGETS,
 }: CloudCodeMonsterPetProps) {
   const [activityState, setActivityState] =
     useState<StoredCloudCodeMonsterActivity | null>(null);
@@ -163,17 +223,10 @@ export function CloudCodeMonsterPet({
   const nextFootprintIdRef = useRef(1);
   const nextFootSideRef = useRef<"left" | "right">("left");
   const didDragRef = useRef(false);
-  const reactionTimerRef = useRef<number | null>(null);
-  const shakeTimerRef = useRef<number | null>(null);
-  const faintTimerRef = useRef<number | null>(null);
-  const autonomousWalkTimerRef = useRef<number | null>(null);
-  const autonomousWalkStopTimerRef = useRef<number | null>(null);
-  const peekTimerRef = useRef<number | null>(null);
-  const peekStopTimerRef = useRef<number | null>(null);
-  const notificationTimerRef = useRef<number | null>(null);
-  const walkSettleTimerRef = useRef<number | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const violentDragEventsRef = useRef<number[]>([]);
+  const peekTargetsRef = useRef(peekTargets);
+  const { clearAllPetTimers, clearPetTimer, setPetTimer } = usePetTimers();
 
   useEffect(() => {
     const syncPreset = (nextPresetId?: string | null) => {
@@ -289,37 +342,8 @@ export function CloudCodeMonsterPet({
   }, [boundaryRef, initialPosition]);
 
   useEffect(() => {
-    return () => {
-      if (reactionTimerRef.current) {
-        window.clearTimeout(reactionTimerRef.current);
-      }
-      if (shakeTimerRef.current) {
-        window.clearTimeout(shakeTimerRef.current);
-      }
-      if (faintTimerRef.current) {
-        window.clearTimeout(faintTimerRef.current);
-      }
-      if (autonomousWalkTimerRef.current) {
-        window.clearTimeout(autonomousWalkTimerRef.current);
-        autonomousWalkTimerRef.current = null;
-      }
-      if (autonomousWalkStopTimerRef.current) {
-        window.clearTimeout(autonomousWalkStopTimerRef.current);
-      }
-      if (peekTimerRef.current) {
-        window.clearTimeout(peekTimerRef.current);
-      }
-      if (peekStopTimerRef.current) {
-        window.clearTimeout(peekStopTimerRef.current);
-      }
-      if (notificationTimerRef.current) {
-        window.clearTimeout(notificationTimerRef.current);
-      }
-      if (walkSettleTimerRef.current) {
-        window.clearTimeout(walkSettleTimerRef.current);
-      }
-    };
-  }, []);
+    return clearAllPetTimers;
+  }, [clearAllPetTimers]);
 
   const activity = useMemo(() => {
     if (!activityState?.activityId) {
@@ -333,9 +357,14 @@ export function CloudCodeMonsterPet({
   const preset = useMemo(() => getCloudCodeMonsterPreset(presetId), [presetId]);
   const isWalking = isDragging || isAutoWalking;
   const hasPosition = position !== null;
+  const hasPeekTargets = peekTargets.length > 0;
   const shouldAutoWalk = shouldCloudCodeMonsterAutoWalk(
     activityState?.activityId ?? null
   );
+
+  useEffect(() => {
+    peekTargetsRef.current = peekTargets;
+  }, [peekTargets]);
 
   useEffect(() => {
     if (
@@ -358,7 +387,7 @@ export function CloudCodeMonsterPet({
     autoWalkVelocityRef.current ??= createCloudCodeMonsterWalkVelocity();
 
     const scheduleNextWalkStep = () => {
-      autonomousWalkTimerRef.current = window.setTimeout(() => {
+      setPetTimer("autonomousWalk", () => {
         const bounds = getBounds(boundaryRef.current);
         const intensity = 1.45;
 
@@ -394,16 +423,14 @@ export function CloudCodeMonsterPet({
       }, CLOUD_CODE_MONSTER_AUTO_WALK_STEP_MS);
     };
 
-    autonomousWalkTimerRef.current = window.setTimeout(
+    setPetTimer(
+      "autonomousWalk",
       scheduleNextWalkStep,
       CLOUD_CODE_MONSTER_AUTO_WALK_STEP_MS
     );
 
     return () => {
-      if (autonomousWalkTimerRef.current) {
-        window.clearTimeout(autonomousWalkTimerRef.current);
-        autonomousWalkTimerRef.current = null;
-      }
+      clearPetTimer("autonomousWalk");
     };
   }, [
     activityState?.activityId,
@@ -413,14 +440,16 @@ export function CloudCodeMonsterPet({
     isDragging,
     isPeeking,
     reacting,
+    clearPetTimer,
     shaken,
     shouldAutoWalk,
+    setPetTimer,
   ]);
 
   useEffect(() => {
     if (
-      !position ||
-      peekTargets.length === 0 ||
+      !hasPosition ||
+      !hasPeekTargets ||
       isDragging ||
       reacting ||
       shaken ||
@@ -429,10 +458,12 @@ export function CloudCodeMonsterPet({
       return;
     }
 
-    peekTimerRef.current = window.setTimeout(() => {
+    setPetTimer("peek", () => {
+      const currentPeekTargets = peekTargetsRef.current;
       const target =
-        peekTargets[Math.floor(Math.random() * peekTargets.length)] ??
-        peekTargets[0];
+        currentPeekTargets[
+          Math.floor(Math.random() * currentPeekTargets.length)
+        ] ?? currentPeekTargets[0];
 
       if (!target) {
         return;
@@ -451,26 +482,24 @@ export function CloudCodeMonsterPet({
       setWalkIntensity(1);
       setPosition(nextPosition);
 
-      peekStopTimerRef.current = window.setTimeout(() => {
+      setPetTimer("peekStop", () => {
         setIsPeeking(false);
-        peekStopTimerRef.current = null;
       }, CLOUD_CODE_MONSTER_PEEK_MS);
     }, CLOUD_CODE_MONSTER_PEEK_INTERVAL_MS + Math.random() * 4_000);
 
     return () => {
-      if (peekTimerRef.current) {
-        window.clearTimeout(peekTimerRef.current);
-        peekTimerRef.current = null;
-      }
+      clearPetTimer("peek");
     };
   }, [
     boundaryRef,
+    clearPetTimer,
     fainted,
+    hasPeekTargets,
+    hasPosition,
     isDragging,
-    peekTargets,
-    position,
     reacting,
     shaken,
+    setPetTimer,
   ]);
 
   const pushFootprint = (nextPosition: PetPoint, intensity: number) => {
@@ -508,25 +537,15 @@ export function CloudCodeMonsterPet({
     violentDragEventsRef.current = [];
     autoWalkVelocityRef.current = null;
 
-    if (autonomousWalkStopTimerRef.current) {
-      window.clearTimeout(autonomousWalkStopTimerRef.current);
-      autonomousWalkStopTimerRef.current = null;
-    }
-    if (peekStopTimerRef.current) {
-      window.clearTimeout(peekStopTimerRef.current);
-      peekStopTimerRef.current = null;
-    }
+    clearPetTimer("autonomousWalk");
+    clearPetTimer("peek");
+    clearPetTimer("peekStop");
   };
 
   const startShockReaction = () => {
-    if (reactionTimerRef.current) {
-      window.clearTimeout(reactionTimerRef.current);
-    }
-
     setReacting(true);
-    reactionTimerRef.current = window.setTimeout(() => {
+    setPetTimer("reaction", () => {
       setReacting(false);
-      reactionTimerRef.current = null;
     }, CLOUD_CODE_MONSTER_REACTION_MS);
   };
 
@@ -542,12 +561,8 @@ export function CloudCodeMonsterPet({
     startShockReaction();
     setNotificationActive(true);
 
-    if (notificationTimerRef.current) {
-      window.clearTimeout(notificationTimerRef.current);
-    }
-    notificationTimerRef.current = window.setTimeout(() => {
+    setPetTimer("notification", () => {
       setNotificationActive(false);
-      notificationTimerRef.current = null;
     }, CLOUD_CODE_MONSTER_REACTION_MS + 1_500);
   }, [notificationToken]);
 
@@ -560,29 +575,16 @@ export function CloudCodeMonsterPet({
       wakeMonsterToDefault();
     }
 
-    if (shakeTimerRef.current) {
-      window.clearTimeout(shakeTimerRef.current);
-    }
-
     setShaken(true);
-    shakeTimerRef.current = window.setTimeout(() => {
+    setPetTimer("shake", () => {
       setShaken(false);
-      shakeTimerRef.current = null;
     }, CLOUD_CODE_MONSTER_SHAKE_REACTION_MS);
   };
 
   const startFaintReaction = () => {
-    if (faintTimerRef.current) {
-      window.clearTimeout(faintTimerRef.current);
-    }
-    if (reactionTimerRef.current) {
-      window.clearTimeout(reactionTimerRef.current);
-      reactionTimerRef.current = null;
-    }
-    if (shakeTimerRef.current) {
-      window.clearTimeout(shakeTimerRef.current);
-      shakeTimerRef.current = null;
-    }
+    clearPetTimer("faint");
+    clearPetTimer("reaction");
+    clearPetTimer("shake");
 
     wakeMonsterToDefault();
     stopTemporaryMotion();
@@ -591,19 +593,15 @@ export function CloudCodeMonsterPet({
     setFainted(true);
     setWalkIntensity(1);
 
-    faintTimerRef.current = window.setTimeout(() => {
+    setPetTimer("faint", () => {
       setFainted(false);
-      faintTimerRef.current = null;
     }, CLOUD_CODE_MONSTER_FAINT_MS);
   };
 
   const handlePetClick = () => {
     stopTemporaryMotion();
     setNotificationActive(false);
-    if (notificationTimerRef.current) {
-      window.clearTimeout(notificationTimerRef.current);
-      notificationTimerRef.current = null;
-    }
+    clearPetTimer("notification");
 
     if (didDragRef.current) {
       didDragRef.current = false;
@@ -620,10 +618,7 @@ export function CloudCodeMonsterPet({
 
     if (fainted) {
       setFainted(false);
-      if (faintTimerRef.current) {
-        window.clearTimeout(faintTimerRef.current);
-        faintTimerRef.current = null;
-      }
+      clearPetTimer("faint");
     }
 
     startShockReaction();
@@ -756,12 +751,8 @@ export function CloudCodeMonsterPet({
     lastPointerRef.current = null;
     lastDragDeltaRef.current = null;
 
-    if (walkSettleTimerRef.current) {
-      window.clearTimeout(walkSettleTimerRef.current);
-    }
-    walkSettleTimerRef.current = window.setTimeout(() => {
+    setPetTimer("walkSettle", () => {
       setWalkIntensity(1);
-      walkSettleTimerRef.current = null;
     }, 180);
 
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
@@ -776,7 +767,7 @@ export function CloudCodeMonsterPet({
   const displayedActivity = isPeeking || fainted ? null : activity;
 
   return (
-    <>
+    <div className={styles.petLayer}>
       <div className="cloud-code-monster-pet-footsteps" aria-hidden="true">
         {footprints.map((footprint) => (
           <span
@@ -884,6 +875,6 @@ export function CloudCodeMonsterPet({
           />
         </button>
       </aside>
-    </>
+    </div>
   );
 }

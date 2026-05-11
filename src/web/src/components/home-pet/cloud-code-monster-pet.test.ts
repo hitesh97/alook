@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   calculateMonsterWalkIntensity,
   clampPetPosition,
@@ -27,6 +27,10 @@ import {
   shouldRefreshCloudCodeMonsterActivity,
 } from "./cloud-code-monster-pet";
 import { readHomePetSettings } from "../../lib/home-pet-settings";
+
+vi.mock("./cloud-code-monster-pet.module.css", () => ({
+  default: { petLayer: "petLayer" },
+}));
 
 function webRoot() {
   return process.cwd().endsWith(`${path.sep}src${path.sep}web`)
@@ -259,6 +263,18 @@ describe("production workspace PET mounting", () => {
       path.join(root, "src/components/home-pet/workspace-pet-layer.tsx"),
       "utf8"
     );
+    const petComponent = readFileSync(
+      path.join(root, "src/components/home-pet/cloud-code-monster-pet.tsx"),
+      "utf8"
+    );
+    const petPixelParts = readFileSync(
+      path.join(root, "src/components/home-pet/cloud-code-monster-pet-pixel-parts.tsx"),
+      "utf8"
+    );
+    const petCssModule = readFileSync(
+      path.join(root, "src/components/home-pet/cloud-code-monster-pet.module.css"),
+      "utf8"
+    );
     const agentNode = readFileSync(
       path.join(root, "src/components/canvas/agent-node.tsx"),
       "utf8"
@@ -266,18 +282,36 @@ describe("production workspace PET mounting", () => {
     const globalCss = readFileSync(path.join(root, "src/app/globals.css"), "utf8");
 
     expect(workspaceHomePage).toContain("CloudCodeMonsterPet");
+    expect(workspaceHomePage).toContain("dynamic<CloudCodeMonsterPetProps>");
     expect(workspaceHomePage).toContain("useHomePetSettings");
     expect(settingsPage).toContain('{ id: "pet", label: "Pet" }');
     expect(petTab).toContain("Enable pet");
     expect(petTab).toContain("Homepage only");
     expect(petTab).toContain("Global Display");
     expect(petTab).toContain("CloudCodeMonsterPresetPreview");
+    expect(petTab).toContain("cloud-code-monster-pet-presets");
+    expect(petTab).not.toContain(
+      'from "@/components/home-pet/cloud-code-monster-pet";'
+    );
     expect(workspaceShell).toContain("WorkspacePetLayer");
     expect(workspaceShell).toContain("RuntimeVersionGate");
     expect(workspacePetLayer).toContain('petSettings.displayScope !== "global"');
+    expect(workspacePetLayer).toContain("dynamic<CloudCodeMonsterPetProps>");
+    expect(petComponent).toContain("const EMPTY_PEEK_TARGETS");
+    expect(petComponent).toContain("peekTargets = EMPTY_PEEK_TARGETS");
+    expect(petComponent).toContain("peekTargetsRef.current = peekTargets");
+    expect(petComponent).toContain("const hasPeekTargets = peekTargets.length > 0");
+    expect(petComponent).toContain("function usePetTimers()");
+    expect(petComponent).toContain("setPetTimer(\"peek\"");
+    expect(petComponent).not.toContain("peekTargets = []");
+    expect(petComponent).not.toContain("TimerRef = useRef");
+    expect(petPixelParts).toContain(
+      'import("./cloud-code-monster-pet-direct-shapes")'
+    );
     expect(agentNode).toContain("data-agent-node-id={agent.id}");
     expect(agentNode).toContain('data-agent-working={activeTaskCount > 0 ? "true" : "false"}');
-    expect(globalCss).toContain(".cloud-code-monster-pet");
+    expect(petCssModule).toContain(":global(.cloud-code-monster-pet)");
+    expect(globalCss).not.toContain(".cloud-code-monster-pet");
     expect(globalCss).not.toContain(".pet-preview-flow");
   });
 });

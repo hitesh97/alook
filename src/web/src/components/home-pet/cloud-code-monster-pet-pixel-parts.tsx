@@ -1,9 +1,15 @@
+import { lazy, Suspense } from "react";
 import { getCloudCodeMonsterExpression } from "./cloud-code-monster-pet-activity";
-import { MonsterDirectPixelCharacter } from "./cloud-code-monster-pet-direct-shapes";
 import type {
   CloudCodeMonsterActivityId,
   CloudCodeMonsterPetPreset,
 } from "./cloud-code-monster-pet-types";
+
+const LazyMonsterDirectPixelCharacter = lazy(() =>
+  import("./cloud-code-monster-pet-direct-shapes").then((module) => ({
+    default: module.MonsterDirectPixelCharacter,
+  }))
+);
 
 function MonsterEyes({
   activityId,
@@ -516,13 +522,15 @@ function MonsterStaticBody({
   if (shape !== "monster") {
     return (
       <g className={animated ? "cloud-code-monster-pet-character" : undefined}>
-        <MonsterDirectPixelCharacter
-          activityId={activityId}
-          preset={preset}
-          reacting={reacting}
-          shaken={shaken}
-          fainted={fainted}
-        />
+        <Suspense fallback={null}>
+          <LazyMonsterDirectPixelCharacter
+            activityId={activityId}
+            preset={preset}
+            reacting={reacting}
+            shaken={shaken}
+            fainted={fainted}
+          />
+        </Suspense>
       </g>
     );
   }

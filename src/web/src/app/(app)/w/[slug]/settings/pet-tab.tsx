@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { Monitor, PanelTop, Sparkles } from "lucide-react";
 
 import {
-  CloudCodeMonsterPresetPreview,
   CLOUD_CODE_MONSTER_PET_PRESETS,
-  CLOUD_CODE_MONSTER_PRESET_CHANGED_EVENT,
   getCloudCodeMonsterPreset,
   readCloudCodeMonsterPetPresetId,
   writeCloudCodeMonsterPetPresetId,
-} from "@/components/home-pet/cloud-code-monster-pet";
+} from "@/components/home-pet/cloud-code-monster-pet-presets";
+import { CLOUD_CODE_MONSTER_PRESET_CHANGED_EVENT } from "@/components/home-pet/cloud-code-monster-pet-constants";
+import { CloudCodeMonsterPresetPreview } from "@/components/home-pet/cloud-code-monster-pet-pixel-parts";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
