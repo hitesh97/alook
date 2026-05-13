@@ -13,7 +13,14 @@ export const GET = withAuth(async (req: NextRequest, ctx) => {
   const { env } = getCloudflareContext();
   const db = getDb((env as Env).DB);
 
-  const count = await queries.inbox.getUnreadCount(db, ctx.userId, ws.workspaceId);
+  const VALID_TYPES = ["user_dm_message", "calendar_event", "email_notification"];
+  const typesParam = req.nextUrl.searchParams.get("types");
+  const types = typesParam
+    ? typesParam.split(",").filter((t) => VALID_TYPES.includes(t))
+    : [];
+  const validTypes = types.length > 0 ? types : ["user_dm_message"];
+
+  const count = await queries.inbox.getUnreadCount(db, ctx.userId, ws.workspaceId, validTypes);
 
   return writeJSON({ count });
 });

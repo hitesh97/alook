@@ -1061,18 +1061,22 @@ export interface InboxItem {
 
 export const listInboxItems = (
   workspaceId: string,
-  opts?: { limit?: number; before?: string }
+  opts?: { limit?: number; before?: string; types?: string[] }
 ) => {
   const extra: Record<string, string> = {};
   if (opts?.limit) extra.limit = String(opts.limit);
   if (opts?.before) extra.before = opts.before;
+  if (opts?.types?.length) extra.types = opts.types.join(",");
   return apiFetch<{ items: InboxItem[]; has_more: boolean }>(
     `/api/inbox${wsQuery(workspaceId, extra)}`
   );
 };
 
-export const getInboxCount = (workspaceId: string) =>
-  apiFetch<{ count: number }>(`/api/inbox/count${wsQuery(workspaceId)}`);
+export const getInboxCount = (workspaceId: string, opts?: { types?: string[] }) => {
+  const extra: Record<string, string> = {};
+  if (opts?.types?.length) extra.types = opts.types.join(",");
+  return apiFetch<{ count: number }>(`/api/inbox/count${wsQuery(workspaceId, extra)}`);
+};
 
 export const markInboxRead = (conversationId: string, workspaceId: string) =>
   apiFetch<void>(`/api/inbox/read${wsQuery(workspaceId)}`, {

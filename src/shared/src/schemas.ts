@@ -570,6 +570,7 @@ export const EmailNotifyRequestSchema = z.object({
   attachments: z.string().optional(),
   traceId: z.string().optional(),
   sourceTaskId: z.string().optional(),
+  isInternal: z.boolean().optional().default(false),
 });
 export type EmailNotifyRequest = z.infer<typeof EmailNotifyRequestSchema>;
 

@@ -13,6 +13,7 @@ import { getInboxCount } from "@/lib/api";
 import { useAgentContext } from "@/contexts/agent-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { sendTaskNotification } from "@/lib/browser-notification";
+import { getInboxFilterTypes } from "@/lib/inbox-filter";
 import type { WsMessage } from "@alook/shared";
 
 interface InboxCountContextValue {
@@ -40,7 +41,8 @@ export function InboxCountProvider({ children }: { children: ReactNode }) {
   agentsRef.current = agents;
 
   const refresh = useCallback(() => {
-    getInboxCount(workspaceId).then((r) => {
+    const types = getInboxFilterTypes();
+    getInboxCount(workspaceId, { types }).then((r) => {
       const prev = prevCountRef.current;
       prevCountRef.current = r.count;
       setCount(r.count);

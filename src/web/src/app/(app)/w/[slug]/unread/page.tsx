@@ -7,8 +7,18 @@ import { useAgentContext } from "@/contexts/agent-context";
 import { listInboxItems, markAllInboxRead, type InboxItem } from "@/lib/api";
 import { useInboxCount } from "@/contexts/inbox-count-context";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Inbox } from "lucide-react";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Inbox, ListFilter, CheckCheck } from "lucide-react";
 import { AvatarRenderer, parseAvatarUrl } from "@/components/avatar";
+import {
+  INBOX_FILTER_TYPES,
+  INBOX_FILTER_LABELS,
+  MANDATORY_INBOX_TYPES,
+  getInboxFilterTypes,
+  setInboxFilterTypes,
+  type InboxFilterType,
+} from "@/lib/inbox-filter";
 import type { WsMessage } from "@alook/shared";
 
 const INBOX_LIMIT = 30;
@@ -53,6 +63,7 @@ function AgentAvatar({ name, avatarUrl, size = 32 }: { name?: string | null; ava
 const TYPE_LABELS: Record<string, string> = {
   user_dm_message: "DM",
   calendar_event: "Calendar",
+  email_notification: "Email",
 };
 
 function TypeBadge({ type }: { type: string | null }) {
@@ -132,14 +143,17 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [filterTypes, setFilterTypes] = useState<InboxFilterType[]>(getInboxFilterTypes);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isFetchingRef = useRef(false);
+  const filterTypesRef = useRef(filterTypes);
+  filterTypesRef.current = filterTypes;
 
   const loadInitial = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
     try {
-      const result = await listInboxItems(workspaceId, { limit: INBOX_LIMIT });
+      const result = await listInboxItems(workspaceId, { limit: INBOX_LIMIT, types: filterTypesRef.current });
       setItems(result.items);
       setHasMore(result.has_more);
     } catch {
@@ -188,6 +202,7 @@ export default function InboxPage() {
       const result = await listInboxItems(workspaceId, {
         limit: INBOX_LIMIT,
         before: oldest.latest_response_at,
+        types: filterTypesRef.current,
       });
       if (result.items.length === 0) {
         setHasMore(false);
@@ -225,6 +240,19 @@ export default function InboxPage() {
     }
   }, [workspaceId, loadInitial, refreshInboxCount]);
 
+  const handleFilterToggle = useCallback((type: InboxFilterType, checked: boolean) => {
+    const next = checked
+      ? [...filterTypesRef.current, type]
+      : filterTypesRef.current.filter((t) => t !== type);
+    setFilterTypes(next);
+    setInboxFilterTypes(next);
+    filterTypesRef.current = next;
+    loadInitial();
+    refreshInboxCount();
+  }, [loadInitial, refreshInboxCount]);
+
+  const activeFilterCount = filterTypes.length - MANDATORY_INBOX_TYPES.length;
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between border-b border-border/50 px-3 md:px-5 py-2.5 gap-3">
@@ -235,13 +263,46 @@ export default function InboxPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+            >
+              <ListFilter className="size-3.5" />
+              <span>Filter</span>
+              {activeFilterCount > 0 && (
+                <span className="size-4 flex items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-medium leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="end" className="w-48">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Show in inbox:</p>
+              <div className="flex flex-col gap-2">
+                {INBOX_FILTER_TYPES.map((type) => {
+                  const isMandatory = MANDATORY_INBOX_TYPES.includes(type);
+                  const isChecked = filterTypes.includes(type);
+                  return (
+                    <label key={type} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox
+                        checked={isChecked}
+                        disabled={isMandatory}
+                        onCheckedChange={(checked) => handleFilterToggle(type, !!checked)}
+                      />
+                      <span className="text-sm">{INBOX_FILTER_LABELS[type]}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
           {!loading && items.length > 0 && (
             <button
               type="button"
               onClick={handleMarkAllRead}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
-              Mark all as read
+              <CheckCheck className="size-3.5" />
+              <span>Mark all as read</span>
             </button>
           )}
         </div>
