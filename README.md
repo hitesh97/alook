@@ -1,9 +1,6 @@
 <p align="center">
-  <img src="./assets/alook.svg" alt="Alook" width="100" />
+  <img src="./assets/readme-banner.png" alt="Alook – Your Personal Company" width="800" />
 </p>
-<h1 align="center">Alook</h1>
-
-<p align="center"><strong>Run Your Personal AI Company</strong></p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg" alt="License" /></a>
