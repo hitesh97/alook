@@ -68,11 +68,11 @@ Or go to [alook.ai](https://alook.ai) and claim unique `@alook.ai` email address
   <img src="./assets/alook-calendar_rounded.png" alt="Alook agent calendar and scheduling" width="500" />
 </p>
 
-| Feature | What it does |
-|---------|-------------|
-| **Local-first & Always-on** | Agents run on your machine. Your codebase never leaves, but reach them from anywhere. |
-| **Self-learning** | Every completed task builds context. Agents remember decisions, learn preferences, and get sharper. |
-| **Traceable** | Every instruction, decision, and reply is recorded. Full accountability, no black boxes. |
+**Local-first & Always-on** — Agents run on your machine. Your codebase never leaves, but reach them from anywhere.
+
+**Self-learning** — Every completed task builds context. Agents remember decisions, learn preferences, and get sharper.
+
+**Traceable** — Every instruction, decision, and reply is recorded. Full accountability, no black boxes.
 
 
 
@@ -101,6 +101,57 @@ Start with a pre-built company template — open-source maintainer, indie hacker
 
 ## Contributing
 
+```mermaid
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#FAF9F7',
+  'primaryBorderColor': '#D4CFC9',
+  'primaryTextColor': '#2A2520',
+  'lineColor': '#9C8E82',
+  'secondaryColor': '#F0EDE8',
+  'tertiaryColor': '#E8E4DE',
+  'fontFamily': 'system-ui, sans-serif',
+  'fontSize': '13px'
+}}}%%
+
+flowchart TB
+    subgraph client["  Your Machine  "]
+        CLI("🔧  CLI + Daemon")
+        RT("🤖  AI Runtimes")
+    end
+
+    subgraph cloud["  Server-side  "]
+        WEB("🌐  App")
+        EML("📨  Email Worker")
+        WSK("⚡  WebSocket DO")
+    end
+
+    subgraph store["  Storage  "]
+        D1[("D1  ·  SQLite")]
+        R2[("R2  ·  Files")]
+    end
+
+    CLI -- "HTTP/HTTPS" --> WEB
+    CLI -..-> RT
+    EML --> WEB
+    WEB <--> WSK
+    WEB --> D1
+    WEB --> R2
+
+    style client fill:#F7F3EE,stroke:#C9BFB3,stroke-width:2px,color:#2A2520,rx:12,ry:12
+    style cloud fill:#FDF5EC,stroke:#DFC9AD,stroke-width:2px,color:#2A2520,rx:12,ry:12
+    style store fill:#F0EEE9,stroke:#C4C0B5,stroke-width:2px,color:#2A2520,rx:12,ry:12
+
+    style CLI fill:#fff,stroke:#C9BFB3,stroke-width:1.5px,color:#2A2520
+    style RT fill:#fff,stroke:#C9BFB3,stroke-width:1.5px,color:#2A2520
+    style WEB fill:#fff,stroke:#DFC9AD,stroke-width:1.5px,color:#2A2520
+    style EML fill:#fff,stroke:#DFC9AD,stroke-width:1.5px,color:#2A2520
+    style WSK fill:#fff,stroke:#DFC9AD,stroke-width:1.5px,color:#2A2520
+    style D1 fill:#fff,stroke:#C4C0B5,stroke-width:1.5px,color:#2A2520
+    style R2 fill:#fff,stroke:#C4C0B5,stroke-width:1.5px,color:#2A2520
+```
+
+<p align="center"><em>Built with Next.js, Cloudflare Workers, and Bun❤️</em></p>
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get involved.
 
 
@@ -109,8 +160,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get involved.
 
 - [Discord](https://discord.alook.ai) — Chat with the team and other builders
 - [Website](https://alook.ai) — Live product
-
-Built with Next.js, Cloudflare Workers, and Bun.
 
 
 
