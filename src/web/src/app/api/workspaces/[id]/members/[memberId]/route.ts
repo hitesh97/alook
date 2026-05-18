@@ -22,7 +22,10 @@ export const DELETE = withAuth(async (req: NextRequest, ctx) => {
   if (target.role === "owner") return writeError("cannot remove a workspace owner", 403);
 
   await queries.member.deleteMember(db, memberId, owner.workspaceId);
-  await invalidate(cacheKeys.member(owner.workspaceId, target.userId));
+  await Promise.all([
+    invalidate(cacheKeys.member(owner.workspaceId, target.userId)),
+    invalidate(cacheKeys.allMembers(owner.workspaceId)),
+  ]);
 
   return new Response(null, { status: 204 });
 });

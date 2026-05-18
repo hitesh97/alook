@@ -62,7 +62,10 @@ describe("POST /api/daemon/register", () => {
     vi.doMock("@/lib/api/responses", () => mocks["@/lib/api/responses"]);
     vi.doMock("@/lib/cache", () => ({
       invalidate: vi.fn(),
-      cacheKeys: { runtimeIds: (...a: any[]) => a.join(":") },
+      cacheKeys: {
+        runtimeIds: (...a: any[]) => a.join(":"),
+        allRuntimes: (ws: string) => `runtimes:${ws}`,
+      },
     }));
     vi.doMock("@/lib/logger", () => ({
       log: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },

@@ -25,6 +25,9 @@ vi.mock("@/lib/cache", () => ({
     allAgents: (ws: string) => `agents:${ws}`,
     allHandles: (ws: string) => `handles:${ws}`,
     allColleagues: (ws: string) => `col:${ws}`,
+    allAgentAccess: (ws: string) => `aa:${ws}`,
+    allMembers: (ws: string) => `members:${ws}`,
+    overviewTaskStats: (ws: string, d: string) => `ov_task:${ws}:${d}`,
   },
 }));
 

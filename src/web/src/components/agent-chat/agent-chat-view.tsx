@@ -369,7 +369,7 @@ export function AgentChatView({
   const flaggedIdsRef = useRef(flaggedIds);
   useEffect(() => { flaggedIdsRef.current = flaggedIds; });
 
-  const { increment: flagIncrement, decrement: flagDecrement } = useFlagCount();
+  const { increment: flagIncrement, decrement: flagDecrement, refresh: flagRefresh } = useFlagCount();
 
   useEffect(() => {
     setChannelAgentId(agentId);
@@ -539,6 +539,9 @@ export function AgentChatView({
             setArtifacts(data.artifacts);
             setBufferedMessages(data.buffered_messages);
             setHasMoreConversations(data.has_more_conversations);
+            listFlaggedMessageIds(workspaceId, data.conversation.id)
+              .then((r) => { if (!ignore) setFlaggedIds(new Set(r.message_ids)); })
+              .catch(() => {});
           }
         } else {
           const data = await chatInit(agentId, workspaceId, activeChannel);
@@ -549,6 +552,9 @@ export function AgentChatView({
           setArtifacts(data.artifacts);
           setBufferedMessages(data.buffered_messages);
           setHasMoreConversations(data.has_more_conversations);
+          listFlaggedMessageIds(workspaceId, data.conversation.id)
+            .then((r) => { if (!ignore) setFlaggedIds(new Set(r.message_ids)); })
+            .catch(() => {});
 
           if (data.active_task) {
             setActiveTask(data.active_task);
@@ -1409,22 +1415,26 @@ export function AgentChatView({
     });
     if (wasFlagged) {
       flagDecrement();
-      apiUnflagMessage(workspaceId, messageId).catch(() => {
-        setFlaggedIds((prev) => new Set(prev).add(messageId));
-        flagIncrement();
-      });
+      apiUnflagMessage(workspaceId, messageId)
+        .then(() => { flagRefresh(); })
+        .catch(() => {
+          setFlaggedIds((prev) => new Set(prev).add(messageId));
+          flagIncrement();
+        });
     } else {
       flagIncrement();
-      apiFlagMessage(workspaceId, messageId).catch(() => {
-        setFlaggedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(messageId);
-          return next;
+      apiFlagMessage(workspaceId, messageId)
+        .then(() => { flagRefresh(); })
+        .catch(() => {
+          setFlaggedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(messageId);
+            return next;
+          });
+          flagDecrement();
         });
-        flagDecrement();
-      });
     }
-  }, [workspaceId, flagIncrement, flagDecrement]);
+  }, [workspaceId, flagIncrement, flagDecrement, flagRefresh]);
 
   const openIssue = useCallback(async (issueId: string) => {
     setSelectedIssueId(issueId);

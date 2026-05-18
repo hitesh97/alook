@@ -107,6 +107,7 @@ export const DELETE = withAuth(async (req, ctx) => {
     invalidate(cacheKeys.agent(ws.workspaceId, id)),
     invalidate(cacheKeys.allAgents(ws.workspaceId)),
     invalidate(cacheKeys.allHandles(ws.workspaceId)),
+    invalidate(cacheKeys.allAgentAccess(ws.workspaceId)),
   ]);
 
   return new Response(null, { status: 204 });

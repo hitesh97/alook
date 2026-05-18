@@ -1,7 +1,7 @@
 import type { Database } from "@alook/shared";
 import { queries } from "@alook/shared";
 import { TaskService } from "./task";
-import { throttled } from "@/lib/cache";
+import { throttled, invalidate, cacheKeys } from "@/lib/cache";
 
 const SWEEP_INTERVAL_S = 30;
 
@@ -50,5 +50,12 @@ export async function sweepStaleState(db: Database, workspaceId: string) {
       seenConversations.add(r.conversationId);
       await taskService.dispatchNextBufferedMessage(r.conversationId, r.workspaceId);
     }
+
+    // Invalidate caches that sweep modified
+    const dateStr = new Date().toISOString().slice(0, 10);
+    await Promise.all([
+      invalidate(cacheKeys.allAgents(workspaceId)),
+      invalidate(cacheKeys.overviewTaskStats(workspaceId, dateStr)),
+    ]).catch(() => {});
   }
 }

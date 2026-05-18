@@ -6,6 +6,7 @@ import { withAuth } from "@/lib/middleware/auth";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { DeregisterRequestSchema } from "@alook/shared";
 import { broadcastToUser } from "@/lib/broadcast";
+import { invalidate, cacheKeys } from "@/lib/cache";
 import { log } from "@/lib/logger";
 
 export const POST = withAuth(async (req: NextRequest, ctx) => {
@@ -29,6 +30,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   } catch (e) {
     log.warn("deregister: setMachineLastSeenNull failed", { daemonId: body.daemon_id, err: String(e) });
   }
+
+  await invalidate(cacheKeys.allRuntimes(ctx.workspaceId));
 
   // Single broadcast at daemon level
   broadcastToUser(ctx.userId, {

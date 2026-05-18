@@ -157,7 +157,7 @@ export async function getAgentsByIds(db: Database, ids: string[], workspaceId: s
 }
 
 export async function getAllAgentsForWorkspace(db: Database, workspaceId: string) {
-  return db.select().from(agent).where(eq(agent.workspaceId, workspaceId));
+  return db.select().from(agent).where(eq(agent.workspaceId, workspaceId)).orderBy(desc(agent.createdAt));
 }
 
 export async function getAllHandlesForWorkspace(db: Database, workspaceId: string) {

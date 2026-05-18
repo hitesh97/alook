@@ -81,8 +81,11 @@ export async function POST(req: NextRequest) {
   }
 
   await queries.machineToken.activateMachineToken(db, mt.id, workspaceId);
-  await invalidate(cacheKeys.machineToken(token));
-  await invalidate(cacheKeys.runtimeIds(workspaceId, daemonId));
+  await Promise.all([
+    invalidate(cacheKeys.machineToken(token)),
+    invalidate(cacheKeys.runtimeIds(workspaceId, daemonId)),
+    invalidate(cacheKeys.allRuntimes(workspaceId)),
+  ]);
 
   // Notify the web UI
   try {

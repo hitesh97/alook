@@ -236,6 +236,43 @@ describe("cache", () => {
       expect(cacheKeys.machineTokenLastUsed("al_1234567890abcdefghij_rest")).toBe("mt_lu:al_1234567890abcdefg");
       expect(cacheKeys.runtimeIds("ws1", "d1")).toBe("rt:ws1:d1");
     });
+
+    it("generates correct new cache key formats", () => {
+      expect(cacheKeys.overviewEmailStats("ws1")).toBe("ov_email:ws1");
+      expect(cacheKeys.overviewTaskStats("ws1", "2026-05-18")).toBe("ov_task:ws1:2026-05-18");
+      expect(cacheKeys.allAgentAccess("ws1")).toBe("aa:ws1");
+      expect(cacheKeys.allRuntimes("ws1")).toBe("runtimes:ws1");
+      expect(cacheKeys.allMembers("ws1")).toBe("members:ws1");
+    });
+
+    it("workspace-scoped keys differ by workspace", () => {
+      expect(cacheKeys.overviewEmailStats("ws1")).not.toBe(cacheKeys.overviewEmailStats("ws2"));
+      expect(cacheKeys.allRuntimes("ws1")).not.toBe(cacheKeys.allRuntimes("ws2"));
+      expect(cacheKeys.allMembers("ws1")).not.toBe(cacheKeys.allMembers("ws2"));
+      expect(cacheKeys.allAgentAccess("ws1")).not.toBe(cacheKeys.allAgentAccess("ws2"));
+    });
+
+    it("no collisions between new key types for same workspace", () => {
+      const ws = "ws_collision_test";
+      const keys = new Set([
+        cacheKeys.overviewEmailStats(ws),
+        cacheKeys.overviewTaskStats(ws, "2026-01-01"),
+        cacheKeys.allAgentAccess(ws),
+        cacheKeys.allRuntimes(ws),
+        cacheKeys.allMembers(ws),
+        cacheKeys.allAgents(ws),
+        cacheKeys.allEmailAccounts(ws),
+        cacheKeys.allColleagues(ws),
+        cacheKeys.allHandles(ws),
+      ]);
+      expect(keys.size).toBe(9);
+    });
+
+    it("overviewTaskStats includes date for cross-midnight isolation", () => {
+      expect(cacheKeys.overviewTaskStats("ws1", "2026-05-17")).not.toBe(
+        cacheKeys.overviewTaskStats("ws1", "2026-05-18"),
+      );
+    });
   });
 
   describe("throttled()", () => {

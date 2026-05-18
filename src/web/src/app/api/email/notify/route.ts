@@ -7,6 +7,7 @@ import { writeJSON, parseBody } from "@/lib/middleware/helpers"
 import { TaskService } from "@/lib/services/task"
 import { broadcastToUser } from "@/lib/broadcast"
 import { taskToResponse } from "@/lib/api/responses"
+import { invalidate, cacheKeys } from "@/lib/cache"
 
 export async function POST(req: NextRequest) {
   const { env } = getCloudflareContext()
@@ -140,6 +141,12 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
     }
   }
+
+  const dateStr = new Date().toISOString().slice(0, 10);
+  await Promise.all([
+    invalidate(cacheKeys.overviewEmailStats(body.workspaceId)),
+    invalidate(cacheKeys.overviewTaskStats(body.workspaceId, dateStr)),
+  ]);
 
   if (agent?.ownerId) {
     broadcastToUser(agent.ownerId, { type: "email.received", agentId: body.agentId }).catch(() => {})

@@ -6,7 +6,7 @@ import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON } from "@/lib/middleware/helpers";
 import { runtimeToResponse } from "@/lib/api/responses";
 import { sweepStaleState } from "@/lib/services/sweep";
-import { cacheKeys } from "@/lib/cache";
+import { cached, cacheKeys } from "@/lib/cache";
 
 const log = createLogger({ service: "api:runtimes" })
 
@@ -24,7 +24,7 @@ export const GET = withAuth(async (req, ctx) => {
     log.warn("sweepStaleState failed, continuing", { workspaceId: ws.workspaceId, err: String(err) })
   }
 
-  const runtimes = await queries.runtime.listAgentRuntimes(db, ws.workspaceId);
+  const runtimes = await cached(cacheKeys.allRuntimes(ws.workspaceId), 120, () => queries.runtime.listAgentRuntimes(db, ws.workspaceId));
 
   // Overlay KV heartbeats for real-time online status
   const kv = (env as Env).CACHE_KV ?? null;

@@ -20,8 +20,12 @@ vi.mock("@alook/shared", async () => {
     queries: {
       agent: {
         listAgents: (...args: unknown[]) => mockListAgents(...args),
+        getAllAgentsForWorkspace: (...args: unknown[]) => mockListAgents(...args),
         createAgent: (...args: unknown[]) => mockCreateAgent(...args),
         getAgent: (...args: unknown[]) => mockGetAgent(...args),
+      },
+      agentAccess: {
+        getAllAgentAccessForWorkspace: vi.fn().mockResolvedValue([]),
       },
       runtime: {
         getAgentRuntimeForWorkspace: (...args: unknown[]) => mockGetAgentRuntimeForWorkspace(...args),
@@ -55,6 +59,21 @@ vi.mock("@/lib/services/task", () => {
 
 vi.mock("@/lib/services/sweep", () => ({
   sweepStaleState: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/cache", () => ({
+  invalidate: vi.fn(),
+  cached: vi.fn((_key: string, _ttl: number, fn: () => Promise<any>) => fn()),
+  cacheKeys: {
+    allAgents: (ws: string) => `agents:${ws}`,
+    allAgentAccess: (ws: string) => `aa:${ws}`,
+    allHandles: (ws: string) => `handles:${ws}`,
+    overviewTaskStats: (ws: string, d: string) => `ov_task:${ws}:${d}`,
+  },
+}));
+
+vi.mock("@/lib/agent-visibility", () => ({
+  filterVisibleAgents: vi.fn((agents: any[]) => agents),
 }));
 
 import { GET, POST } from "./route";

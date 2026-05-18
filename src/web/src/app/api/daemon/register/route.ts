@@ -91,7 +91,10 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     results.push({ ...result, machineLastSeenAt: new Date().toISOString() });
   }
 
-  await invalidate(cacheKeys.runtimeIds(workspaceId, daemonId));
+  await Promise.all([
+    invalidate(cacheKeys.runtimeIds(workspaceId, daemonId)),
+    invalidate(cacheKeys.allRuntimes(workspaceId)),
+  ]);
 
   broadcastToUser(ctx.userId, {
     type: "runtime.registered",
