@@ -78,7 +78,7 @@ export const PATCH = withAuth(async (req, ctx) => {
   const updated = await queries.emailAccount.updateEmailAccount(db, accountId, ws.workspaceId, data)
   if (!updated) return writeError("update failed", 500)
 
-  await invalidate(cacheKeys.emailAccountsByAgent(ws.workspaceId, agentId));
+  await invalidate(cacheKeys.allEmailAccounts(ws.workspaceId));
 
   const hasCredentialChange = body.imapUsername || body.imapPassword || body.smtpUsername || body.smtpPassword || body.imapHost || body.smtpHost
   if (hasCredentialChange) {
@@ -109,7 +109,7 @@ export const DELETE = withAuth(async (req, ctx) => {
   const deleted = await queries.emailAccount.deleteEmailAccount(db, accountId, ws.workspaceId)
   if (!deleted) return writeError("delete failed", 500)
 
-  await invalidate(cacheKeys.emailAccountsByAgent(ws.workspaceId, agentId));
+  await invalidate(cacheKeys.allEmailAccounts(ws.workspaceId));
 
   return writeJSON({ ok: true })
 })

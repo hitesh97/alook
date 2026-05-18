@@ -144,12 +144,12 @@ describe("buildInstructionContent email tool injection", () => {
     });
     const content = buildInstructionContent(task);
 
-    expect(content).toContain("## Your Colleagues");
+    expect(content).toContain("## YOUR COLLEAGUES");
     expect(content).toContain("### Scout (scout@alook.ai)");
     expect(content).toContain("A researcher agent");
-    expect(content).toContain("**When to involve:** Share findings with YOU");
+    expect(content).toContain("**DELEGATE when:** Share findings with YOU");
     expect(content).toContain("### Writer (writer@alook.ai)");
-    expect(content).toContain("**When to involve:** Draft blog posts");
+    expect(content).toContain("**DELEGATE when:** Draft blog posts");
   });
 
   it("omits colleagues section when no colleagues", () => {
@@ -158,7 +158,7 @@ describe("buildInstructionContent email tool injection", () => {
     });
     const content = buildInstructionContent(task);
 
-    expect(content).not.toContain("## Your Colleagues");
+    expect(content).not.toContain("## YOUR COLLEAGUES");
   });
 
   it("omits colleagues section when colleagues undefined", () => {
@@ -167,7 +167,7 @@ describe("buildInstructionContent email tool injection", () => {
     });
     const content = buildInstructionContent(task);
 
-    expect(content).not.toContain("## Your Colleagues");
+    expect(content).not.toContain("## YOUR COLLEAGUES");
   });
 
   it("omits description line for colleague with empty description", () => {
@@ -183,7 +183,7 @@ describe("buildInstructionContent email tool injection", () => {
     const content = buildInstructionContent(task);
 
     expect(content).toContain("### Scout (scout@alook.ai)");
-    expect(content).toContain("**When to involve:** Share data");
+    expect(content).toContain("**DELEGATE when:** Share data");
     // Only the header + relationship, no blank description line
     const scoutSection = content.split("### Scout")[1].split("##")[0];
     expect(scoutSection).not.toMatch(/\n\n\n/);

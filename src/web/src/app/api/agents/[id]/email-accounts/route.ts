@@ -86,6 +86,8 @@ export const POST = withAuth(async (req, ctx) => {
     pollIntervalSeconds: body.pollIntervalSeconds,
   })
 
+  await invalidate(cacheKeys.allEmailAccounts(ws.workspaceId));
+
   try {
     await cfEnv.EMAIL_WORKER.fetch(`http://internal/imap/start?accountId=${account.id}`, {
       method: "POST",
@@ -96,7 +98,7 @@ export const POST = withAuth(async (req, ctx) => {
     }).catch(() => {})
   }
 
-  await invalidate(cacheKeys.emailAccountsByAgent(ws.workspaceId, agentId));
+  await invalidate(cacheKeys.allEmailAccounts(ws.workspaceId));
 
   return writeJSON(accountToResponse(account), 201)
 })

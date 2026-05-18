@@ -14,7 +14,7 @@ import { log } from "@/lib/logger";
 export const POST = withAuth(async (req: NextRequest, ctx) => {
   const { env } = getCloudflareContext();
   const db = getDb((env as Env).DB);
-  const { cached, cachedBatch, cacheKeys, throttled } = await import("@/lib/cache");
+  const { cached, cacheKeys, throttled } = await import("@/lib/cache");
 
   const [body, err] = await parseBody(req, PollRequestSchema);
   if (err) return err;
@@ -107,37 +107,16 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   const nonKillTasks = claimed.filter((t) => t.type !== "kill_task");
   const agentIds = [...new Set(nonKillTasks.map((t) => t.agentId))];
 
-  const [allAgents, allEmailAccounts, allColleagues] = agentIds.length > 0
-    ? await Promise.all([
-        cachedBatch(
-          agentIds.map((id) => cacheKeys.agent(ctx.workspaceId!, id)),
-          300,
-          async (missingKeys) => {
-            const missingIds = missingKeys.map((k) => k.split(":").pop()!);
-            const agents = await withD1Retry(() => queries.agent.getAgentsByIds(db, missingIds, ctx.workspaceId!));
-            const result = new Map<string, (typeof agents)[number]>();
-            for (const a of agents) {
-              result.set(cacheKeys.agent(ctx.workspaceId!, a.id), a);
-            }
-            return result;
-          },
-        ).then((m) => [...m.values()]),
-        Promise.all(
-          agentIds.map((id) =>
-            cached(cacheKeys.emailAccountsByAgent(ctx.workspaceId!, id), 900, () =>
-              queries.emailAccount.getEmailAccountsByAgents(db, [id], ctx.workspaceId!),
-            ),
-          ),
-        ).then((arrays) => arrays.flat()),
-        Promise.all(
-          agentIds.map((id) =>
-            cached(cacheKeys.colleaguesByAgent(ctx.workspaceId!, id), 300, () =>
-              queries.agentLink.getColleaguesForAgents(db, [id], ctx.workspaceId!),
-            ).catch(() => [] as Awaited<ReturnType<typeof queries.agentLink.getColleaguesForAgents>>),
-          ),
-        ).then((arrays) => arrays.flat()),
-      ])
-    : [[], [], [] as Awaited<ReturnType<typeof queries.agentLink.getColleaguesForAgents>>];
+  const [cachedAgents, cachedEmailAccounts, cachedColleagues] = await Promise.all([
+    cached(cacheKeys.allAgents(ctx.workspaceId!), 300, () => queries.agent.getAllAgentsForWorkspace(db, ctx.workspaceId!)),
+    cached(cacheKeys.allEmailAccounts(ctx.workspaceId!), 600, () => queries.emailAccount.getAllEmailAccountsForWorkspace(db, ctx.workspaceId!)),
+    cached(cacheKeys.allColleagues(ctx.workspaceId!), 600, () => queries.agentLink.getAllColleaguesForWorkspace(db, ctx.workspaceId!)).catch(() => [] as Awaited<ReturnType<typeof queries.agentLink.getAllColleaguesForWorkspace>>),
+  ]);
+
+  const agentIdSet = new Set(agentIds);
+  const allAgents = cachedAgents.filter((a) => agentIdSet.has(a.id));
+  const allEmailAccounts = cachedEmailAccounts.filter((a) => agentIdSet.has(a.agentId));
+  const allColleagues = cachedColleagues.filter((c) => agentIdSet.has(c.agentId));
 
   const agentMap = new Map(allAgents.map((a) => [a.id, a]));
   const emailAccountsByAgent = new Map<string, string[]>();

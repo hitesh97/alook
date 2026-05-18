@@ -280,6 +280,7 @@ export const channel = sqliteTable(
       .notNull()
       .references(() => workspace.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    position: integer("position").notNull().default(0),
     createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   },
   (t) => [

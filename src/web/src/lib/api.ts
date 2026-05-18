@@ -211,6 +211,12 @@ export const deleteChannelApi = (id: string, workspaceId: string) =>
     method: "DELETE",
   });
 
+export const reorderChannelsApi = (workspaceId: string, orderedChannelIds: string[]) =>
+  apiFetch<void>(`/api/channels/reorder${wsQuery(workspaceId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ ordered_channel_ids: orderedChannelIds }),
+  });
+
 // Conversations
 export const listConversations = (workspaceId: string, channel?: string) =>
   apiFetch<Conversation[]>(`/api/conversations${wsQuery(workspaceId, channel ? { channel } : undefined)}`);

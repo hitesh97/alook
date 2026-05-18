@@ -8,6 +8,7 @@ import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { emailToResponse } from "@/lib/api/responses";
 import { broadcastToUser } from "@/lib/broadcast";
+import { cached, cacheKeys } from "@/lib/cache";
 
 async function broadcastEmailSentEvent(
   db: Parameters<typeof queries.message.createMessage>[0],
@@ -65,8 +66,8 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     if (body.from === alookAddr) {
       fromAddress = alookAddr;
     } else {
-      const accounts = await queries.emailAccount.getEmailAccountsByAgent(db, body.agentId, ws.workspaceId);
-      const match = accounts.find((a) => a.emailAddress === body.from);
+      const allAccounts = await cached(cacheKeys.allEmailAccounts(ws.workspaceId), 600, () => queries.emailAccount.getAllEmailAccountsForWorkspace(db, ws.workspaceId));
+      const match = allAccounts.find((a) => a.agentId === body.agentId && a.emailAddress === body.from);
       if (!match) {
         return writeError(`email address '${body.from}' is not configured for this agent`, 400);
       }

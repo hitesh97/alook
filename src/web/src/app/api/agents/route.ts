@@ -8,6 +8,7 @@ import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { agentToResponse } from "@/lib/api/responses";
 import { TaskService } from "@/lib/services/task";
 import { sweepStaleState } from "@/lib/services/sweep";
+import { invalidate, cacheKeys } from "@/lib/cache";
 
 export const GET = withAuth(async (req, ctx) => {
   const ws = await withWorkspaceMember(req, ctx);
@@ -82,6 +83,11 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   if (emailHandle && ctx.email) {
     await queries.whitelist.addWhitelist(db, newAgent.id, ws.workspaceId, ctx.email.toLowerCase());
   }
+
+  await Promise.all([
+    invalidate(cacheKeys.allAgents(ws.workspaceId)),
+    invalidate(cacheKeys.allHandles(ws.workspaceId)),
+  ]);
 
   // Send welcome email to owner
   if (newAgent.runtimeId && newAgent.emailHandle && ctx.email && isOnline(runtime.machineLastSeenAt)) {

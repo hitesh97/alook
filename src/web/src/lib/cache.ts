@@ -140,6 +140,8 @@ export const cacheKeys = {
   agent: (workspaceId: string, agentId: string) => `ag:${workspaceId}:${agentId}`,
   heartbeat: (workspaceId: string, daemonId: string) => `hb:${workspaceId}:${daemonId}`,
   user: (userId: string) => `usr:${userId}`,
-  emailAccountsByAgent: (workspaceId: string, agentId: string) => `ea:${workspaceId}:${agentId}`,
-  colleaguesByAgent: (workspaceId: string, agentId: string) => `col:${workspaceId}:${agentId}`,
+  allAgents: (workspaceId: string) => `agents:${workspaceId}`,
+  allEmailAccounts: (workspaceId: string) => `ea:${workspaceId}`,
+  allColleagues: (workspaceId: string) => `col:${workspaceId}`,
+  allHandles: (workspaceId: string) => `handles:${workspaceId}`,
 };

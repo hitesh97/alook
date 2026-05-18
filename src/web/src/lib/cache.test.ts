@@ -227,8 +227,10 @@ describe("cache", () => {
       expect(cacheKeys.agent("ws1", "ag1")).toBe("ag:ws1:ag1");
       expect(cacheKeys.member("ws1", "usr1")).toBe("mem:ws1:usr1");
       expect(cacheKeys.user("usr1")).toBe("usr:usr1");
-      expect(cacheKeys.emailAccountsByAgent("ws1", "ag1")).toBe("ea:ws1:ag1");
-      expect(cacheKeys.colleaguesByAgent("ws1", "ag1")).toBe("col:ws1:ag1");
+      expect(cacheKeys.allEmailAccounts("ws1")).toBe("ea:ws1");
+      expect(cacheKeys.allColleagues("ws1")).toBe("col:ws1");
+      expect(cacheKeys.allAgents("ws1")).toBe("agents:ws1");
+      expect(cacheKeys.allHandles("ws1")).toBe("handles:ws1");
       expect(cacheKeys.heartbeat("ws1", "d1")).toBe("hb:ws1:d1");
       expect(cacheKeys.machineToken("al_1234567890abcdefghij_rest")).toBe("mt:al_1234567890abcdefg");
       expect(cacheKeys.machineTokenLastUsed("al_1234567890abcdefghij_rest")).toBe("mt_lu:al_1234567890abcdefg");

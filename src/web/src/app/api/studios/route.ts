@@ -9,6 +9,7 @@ import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { agentToResponse, workspaceToResponse, agentLinkToResponse } from "@/lib/api/responses";
 import { TaskService } from "@/lib/services/task";
+import { invalidate, cached, cacheKeys } from "@/lib/cache";
 
 function slugify(name: string): string {
   return name
@@ -18,23 +19,27 @@ function slugify(name: string): string {
     .slice(0, 60);
 }
 
-async function generateUniqueHandle(
-  db: ReturnType<typeof getDb>,
+function generateUniqueHandleFromSet(
+  handleSet: Set<string>,
   baseName: string,
-): Promise<string> {
+): string {
   const base = baseName.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 30);
-  if (isValidHandle(base)) {
-    const existing = await queries.agent.getAgentByHandle(db, base);
-    if (!existing) return base;
+  if (isValidHandle(base) && !handleSet.has(base)) {
+    handleSet.add(base);
+    return base;
   }
   for (let i = 0; i < 5; i++) {
     const suffix = uniqueNamesGenerator({ dictionaries: [names], length: 1, style: "lowerCase" });
     const candidate = `${base}-${suffix}`.slice(0, 30);
     if (!isValidHandle(candidate)) continue;
-    const existing = await queries.agent.getAgentByHandle(db, candidate);
-    if (!existing) return candidate;
+    if (!handleSet.has(candidate)) {
+      handleSet.add(candidate);
+      return candidate;
+    }
   }
-  return `${base}-${nanoid(6)}`;
+  const fallback = `${base}-${nanoid(6)}`;
+  handleSet.add(fallback);
+  return fallback;
 }
 
 type LinkInstruction = { fromLeader: string; toLeader: string };
@@ -166,11 +171,14 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
   // Create agents
   const createdAgents: Array<{ id: string; role: string; name: string; emailHandle: string | null; runtimeId: string | null }> = [];
 
+  const allHandles = await cached(cacheKeys.allHandles(ws.workspaceId), 120, () => queries.agent.getAllHandlesForWorkspace(db, ws.workspaceId));
+  const handleSet = new Set(allHandles.map((h) => h.emailHandle).filter(Boolean) as string[]);
+
   for (const member of body.members) {
     const agentName = member.name || `Agent-${nanoid(4)}`;
-    const handle = member.email_handle && isValidHandle(member.email_handle)
-      ? member.email_handle
-      : await generateUniqueHandle(db, agentName);
+    const handle = member.email_handle && isValidHandle(member.email_handle) && !handleSet.has(member.email_handle)
+      ? (handleSet.add(member.email_handle), member.email_handle)
+      : generateUniqueHandleFromSet(handleSet, agentName);
 
     const rc = member.runtime_config;
     const sanitizedRc: Record<string, unknown> | null = rc
@@ -227,6 +235,12 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       // Best-effort — don't fail the whole studio creation
     }
   }
+
+  await Promise.all([
+    invalidate(cacheKeys.allAgents(ws.workspaceId)),
+    invalidate(cacheKeys.allHandles(ws.workspaceId)),
+    invalidate(cacheKeys.allColleagues(ws.workspaceId)),
+  ]);
 
   // Pin leader agent by default
   try {
