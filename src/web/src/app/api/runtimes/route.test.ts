@@ -6,22 +6,24 @@ vi.mock("@opennextjs/cloudflare", () => ({
 }));
 
 const mockListAgentRuntimes = vi.fn();
-const mockSweepStaleState = vi.fn();
 
-vi.mock("@/lib/db", () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock("@/lib/db", () => ({ getDb: vi.fn(() => ({})), getReadDb: vi.fn(() => ({})) }));
+
+vi.mock("@/lib/cache", () => ({
+  cached: vi.fn((_key: string, _ttl: number, fn: () => any) => fn()),
+  cacheKeys: {
+    allRuntimes: (ws: string) => `runtimes:${ws}`,
+    heartbeat: (ws: string, id: string) => `hb:${ws}:${id}`,
+  },
+}));
 
 vi.mock("@alook/shared", () => ({
   createDb: vi.fn(() => ({})),
-  createLogger: vi.fn(() => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() })),
   queries: {
     runtime: {
       listAgentRuntimes: (...args: unknown[]) => mockListAgentRuntimes(...args),
     },
   },
-}));
-
-vi.mock("@/lib/services/sweep", () => ({
-  sweepStaleState: (...args: unknown[]) => mockSweepStaleState(...args),
 }));
 
 vi.mock("@/lib/middleware/auth", () => ({
@@ -53,7 +55,6 @@ describe("GET /api/runtimes", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("lists runtimes in workspace", async () => {
-    mockSweepStaleState.mockResolvedValue(undefined);
     mockListAgentRuntimes.mockResolvedValue([
       { id: "r1", status: "online" },
       { id: "r2", status: "offline" },
@@ -68,16 +69,5 @@ describe("GET /api/runtimes", () => {
       { id: "r2", status: "offline" },
     ]);
     expect(mockListAgentRuntimes).toHaveBeenCalledWith({}, "w1");
-  });
-
-  it("calls sweepStaleState before listing", async () => {
-    mockSweepStaleState.mockResolvedValue(undefined);
-    mockListAgentRuntimes.mockResolvedValue([]);
-
-    const req = new NextRequest("http://localhost/api/runtimes");
-    await GET(req, {} as any);
-
-    expect(mockSweepStaleState).toHaveBeenCalledWith({}, "w1");
-    expect(mockSweepStaleState).toHaveBeenCalledBefore(mockListAgentRuntimes);
   });
 });

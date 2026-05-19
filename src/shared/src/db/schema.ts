@@ -379,6 +379,7 @@ export const agentTaskQueue = sqliteTable(
     index("idx_task_queue_trace").on(t.traceId),
     index("idx_task_queue_parent").on(t.parentTaskId),
     index("idx_task_queue_workspace_type_status").on(t.workspaceId, t.type, t.status),
+    index("idx_task_queue_workspace_status_dispatched").on(t.workspaceId, t.status, t.dispatchedAt),
     foreignKey({
       columns: [t.agentId, t.workspaceId],
       foreignColumns: [agent.id, agent.workspaceId],

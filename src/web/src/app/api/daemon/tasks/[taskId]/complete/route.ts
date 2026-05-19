@@ -38,6 +38,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     );
     const dateStr = new Date().toISOString().slice(0, 10);
     invalidate(cacheKeys.overviewTaskStats(ctx.workspaceId, dateStr)).catch(() => {});
+    invalidate(cacheKeys.inboxCount(ctx.userId, ctx.workspaceId)).catch(() => {});
     broadcastToUser(ctx.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "completed" }).catch(() => {});
     return writeJSON(taskToResponse(task));
   } catch (e: unknown) {

@@ -61,7 +61,12 @@ export class ImapPollerDO extends DurableObject<EmailEnv> {
   }
 
   async alarm(): Promise<void> {
-    await this.pollImap()
+    await Promise.race([
+      this.pollImap(),
+      new Promise<void>((_, reject) => setTimeout(() => reject(new Error("poll timeout")), 25000)),
+    ]).catch((e) => {
+      log.warn("alarm: poll aborted", { err: String(e) })
+    })
   }
 
   private async pollImap(): Promise<void> {

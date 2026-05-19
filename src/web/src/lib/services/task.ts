@@ -3,6 +3,7 @@ import { queries, TASK_TYPES, MAX_TASKS_PER_TRACE } from "@alook/shared";
 import { log } from "@/lib/logger";
 import { broadcastToUser } from "@/lib/broadcast";
 import { messageToResponse, taskToResponse } from "@/lib/api/responses";
+import { invalidate, cacheKeys } from "@/lib/cache";
 
 const taskQueries = queries.task;
 const agentQueries = queries.agent;
@@ -36,7 +37,7 @@ export class TaskService {
       }
     }
 
-    return taskQueries.createTask(this.db, {
+    const task = await taskQueries.createTask(this.db, {
       agentId,
       runtimeId: agent.runtimeId,
       workspaceId,
@@ -49,6 +50,8 @@ export class TaskService {
       traceId: opts?.traceId ?? null,
       parentTaskId: opts?.parentTaskId ?? null,
     });
+    invalidate(cacheKeys.activeTaskCounts(workspaceId)).catch(() => {});
+    return task;
   }
 
   async claimTask(agentId: string, workspaceId: string) {
@@ -78,7 +81,7 @@ export class TaskService {
 
   async claimTasksForRuntimes(runtimeIds: string[], maxTasks: number, workspaceId: string) {
     const killTasks = await taskQueries.claimKillTasks(this.db, runtimeIds, workspaceId, maxTasks);
-    let remaining = maxTasks - killTasks.length;
+    const remaining = maxTasks - killTasks.length;
 
     const tasks = remaining > 0
       ? await taskQueries.listPendingTasksByRuntimes(this.db, runtimeIds, workspaceId)
@@ -87,17 +90,22 @@ export class TaskService {
     const triedAgents = new Set<string>();
     const claimed: NonNullable<Awaited<ReturnType<typeof this.claimTask>>>[] = [...killTasks];
 
+    const uniqueCandidates: { agentId: string; workspaceId: string }[] = [];
     for (const candidate of tasks) {
-      if (remaining <= 0) break;
-
+      if (uniqueCandidates.length >= remaining) break;
       const key = `${candidate.agentId}:${candidate.workspaceId}`;
       if (triedAgents.has(key)) continue;
       triedAgents.add(key);
+      uniqueCandidates.push(candidate);
+    }
 
-      const task = await this.claimTask(candidate.agentId, candidate.workspaceId);
+    const results = await Promise.all(
+      uniqueCandidates.map((c) => this.claimTask(c.agentId, c.workspaceId))
+    );
+
+    for (const task of results) {
       if (task && runtimeIdSet.has(task.runtimeId)) {
         claimed.push(task);
-        remaining--;
       }
     }
 
@@ -296,6 +304,7 @@ export class TaskService {
     const running = await taskQueries.countRunningTasks(this.db, agentId, workspaceId);
     const status = running > 0 ? "working" : "idle";
     await agentQueries.updateAgentStatus(this.db, agentId, workspaceId, status);
+    invalidate(cacheKeys.activeTaskCounts(workspaceId)).catch(() => {});
   }
 
   async dispatchNextBufferedMessage(conversationId: string, workspaceId: string) {

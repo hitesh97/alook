@@ -138,7 +138,7 @@ export function AgentProvider({
   useEffect(() => {
     taskCountsMountedRef.current = true;
     fetchTaskCounts();
-    const id = setInterval(fetchTaskCounts, 5000);
+    const id = setInterval(fetchTaskCounts, 15000);
     return () => {
       taskCountsMountedRef.current = false;
       clearInterval(id);

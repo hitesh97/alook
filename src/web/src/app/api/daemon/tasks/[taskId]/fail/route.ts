@@ -30,6 +30,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     const task = await taskService.failTask(taskId, ctx.workspaceId, body.error);
     const dateStr = new Date().toISOString().slice(0, 10);
     invalidate(cacheKeys.overviewTaskStats(ctx.workspaceId, dateStr)).catch(() => {});
+    invalidate(cacheKeys.inboxCount(ctx.userId, ctx.workspaceId)).catch(() => {});
     broadcastToUser(ctx.userId, { type: "task.updated", taskId, agentId: task.agentId, status: "failed" }).catch(() => {});
     return writeJSON(taskToResponse(task));
   } catch (e: unknown) {

@@ -76,7 +76,7 @@ export function InboxCountProvider({ children }: { children: ReactNode }) {
   }, [subscribeWs, refresh]);
 
   useEffect(() => {
-    const id = setInterval(refresh, 30_000);
+    const id = setInterval(refresh, 60_000);
     return () => clearInterval(id);
   }, [refresh]);
 

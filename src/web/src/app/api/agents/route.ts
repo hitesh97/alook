@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare"
 import { queries, isValidHandle, isOnline, CreateAgentRequestSchema, TASK_TYPES } from "@alook/shared"
-import { getDb } from "@/lib/db"
+import { getDb, getReadDb } from "@/lib/db"
 import { withAuth } from "@/lib/middleware/auth";
 import { withWorkspaceMember } from "@/lib/middleware/workspace";
 import { writeJSON, writeError, parseBody } from "@/lib/middleware/helpers";
 import { agentToResponse } from "@/lib/api/responses";
 import { TaskService } from "@/lib/services/task";
-import { sweepStaleState } from "@/lib/services/sweep";
 import { invalidate, cached, cacheKeys } from "@/lib/cache";
 import { filterVisibleAgents } from "@/lib/agent-visibility";
 
@@ -16,10 +15,7 @@ export const GET = withAuth(async (req, ctx) => {
   if (ws instanceof Response) return ws;
 
   const { env } = getCloudflareContext()
-  const db = getDb((env as Env).DB)
-
-  // Sweep stale state: catches stuck tasks even when all daemons are dead
-  await sweepStaleState(db, ws.workspaceId);
+  const db = getReadDb((env as Env).DB)
 
   const [allAgents, allAccess] = await Promise.all([
     cached(cacheKeys.allAgents(ws.workspaceId), 300, () => queries.agent.getAllAgentsForWorkspace(db, ws.workspaceId)),

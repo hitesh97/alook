@@ -102,24 +102,29 @@ export async function findSteerableReplacement(
       )
     );
 
-  for (const active of activeTasks) {
-    if (!active.contextKey) continue;
-    const candidates = await db
-      .select({ id: agentTaskQueue.id })
-      .from(agentTaskQueue)
-      .where(
-        and(
-          eq(agentTaskQueue.agentId, agentId),
-          eq(agentTaskQueue.workspaceId, workspaceId),
-          eq(agentTaskQueue.status, "queued"),
-          eq(agentTaskQueue.conversationId, active.conversationId),
-          eq(agentTaskQueue.contextKey, active.contextKey)
-        )
-      )
-      .limit(1);
+  const steerableActive = activeTasks.filter((t) => t.contextKey);
+  if (steerableActive.length === 0) return null;
 
-    if (candidates.length > 0) {
-      return { predecessorId: active.id, contextKey: active.contextKey };
+  const contextKeys = steerableActive.map((t) => t.contextKey!);
+  const queuedWithMatchingKeys = await db
+    .select({
+      conversationId: agentTaskQueue.conversationId,
+      contextKey: agentTaskQueue.contextKey,
+    })
+    .from(agentTaskQueue)
+    .where(
+      and(
+        eq(agentTaskQueue.agentId, agentId),
+        eq(agentTaskQueue.workspaceId, workspaceId),
+        eq(agentTaskQueue.status, "queued"),
+        inArray(agentTaskQueue.contextKey, contextKeys)
+      )
+    );
+
+  const queuedSet = new Set(queuedWithMatchingKeys.map((q) => `${q.conversationId}:${q.contextKey}`));
+  for (const active of steerableActive) {
+    if (queuedSet.has(`${active.conversationId}:${active.contextKey}`)) {
+      return { predecessorId: active.id, contextKey: active.contextKey! };
     }
   }
   return null;
@@ -182,28 +187,30 @@ export async function claimTask(db: Database, agentId: string, workspaceId: stri
 
   let candidates = await candidateQuery;
 
-  // If no non-steerable candidate, try steerable conversations
+  // If no non-steerable candidate, try steerable conversations (batched, capped at 50)
   if (candidates.length === 0 && steerableConvContextKeys.size > 0) {
-    for (const [convId, activeContextKey] of steerableConvContextKeys) {
-      const steerCandidates = await db
-        .select({ id: agentTaskQueue.id })
-        .from(agentTaskQueue)
-        .where(
-          and(
-            eq(agentTaskQueue.agentId, agentId),
-            eq(agentTaskQueue.workspaceId, workspaceId),
-            eq(agentTaskQueue.status, "queued"),
-            eq(agentTaskQueue.conversationId, convId),
-            eq(agentTaskQueue.contextKey, activeContextKey)
-          )
+    const steerConditions = [...steerableConvContextKeys.entries()].slice(0, 50).map(([convId, ctxKey]) =>
+      and(
+        eq(agentTaskQueue.conversationId, convId),
+        eq(agentTaskQueue.contextKey, ctxKey),
+      )
+    );
+    const steerCandidates = await db
+      .select({ id: agentTaskQueue.id })
+      .from(agentTaskQueue)
+      .where(
+        and(
+          eq(agentTaskQueue.agentId, agentId),
+          eq(agentTaskQueue.workspaceId, workspaceId),
+          eq(agentTaskQueue.status, "queued"),
+          or(...steerConditions),
         )
-        .orderBy(desc(agentTaskQueue.priority), asc(agentTaskQueue.createdAt))
-        .limit(1);
+      )
+      .orderBy(desc(agentTaskQueue.priority), asc(agentTaskQueue.createdAt))
+      .limit(1);
 
-      if (steerCandidates.length > 0) {
-        candidates = steerCandidates;
-        break;
-      }
+    if (steerCandidates.length > 0) {
+      candidates = steerCandidates;
     }
   }
 
@@ -617,38 +624,20 @@ const DEFAULT_STALE_RUNNING_SECONDS = Number(process.env.ALOOK_STALE_RUNNING_TIM
 export async function failStaleRunningTasks(db: Database, workspaceId: string, staleSeconds = DEFAULT_STALE_RUNNING_SECONDS) {
   const threshold = new Date(Date.now() - staleSeconds * 1000).toISOString();
 
-  const runningTasks = await db
-    .select({ id: agentTaskQueue.id, startedAt: agentTaskQueue.startedAt })
+  const staleRows = await db
+    .select({ id: agentTaskQueue.id })
     .from(agentTaskQueue)
     .where(
       and(
         eq(agentTaskQueue.workspaceId, workspaceId),
         eq(agentTaskQueue.status, "running"),
+        sql`coalesce((SELECT MAX(created_at) FROM task_message WHERE task_id = ${agentTaskQueue.id}), ${agentTaskQueue.startedAt}) < ${threshold}`
       )
     );
 
-  if (runningTasks.length === 0) return [];
+  if (staleRows.length === 0) return [];
 
-  const taskIds = runningTasks.map(t => t.id);
-  const lastMessages = await db
-    .select({
-      taskId: taskMessage.taskId,
-      lastMessageAt: sql<string>`max(${taskMessage.createdAt})`.as("last_message_at"),
-    })
-    .from(taskMessage)
-    .where(inArray(taskMessage.taskId, taskIds))
-    .groupBy(taskMessage.taskId);
-
-  const lastMsgMap = new Map(lastMessages.map(m => [m.taskId, m.lastMessageAt]));
-  const staleIds = runningTasks
-    .filter(t => {
-      const lastActivity = lastMsgMap.get(t.id) ?? t.startedAt;
-      return lastActivity != null && lastActivity < threshold;
-    })
-    .map(t => t.id);
-
-  if (staleIds.length === 0) return [];
-
+  const staleIds = staleRows.map((r) => r.id);
   const rows = await db
     .update(agentTaskQueue)
     .set({

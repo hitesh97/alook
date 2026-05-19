@@ -25,7 +25,7 @@ const mockInvalidate = vi.fn().mockResolvedValue(undefined);
 const mockKvPut = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("@opennextjs/cloudflare", () => ({
-  getCloudflareContext: vi.fn(() => ({ env: { DB: {}, CACHE_KV: { put: (...args: unknown[]) => mockKvPut(...args), get: vi.fn().mockResolvedValue(null), delete: vi.fn().mockResolvedValue(undefined) } } })),
+  getCloudflareContext: vi.fn(() => ({ env: { DB: {}, CACHE_KV: { put: (...args: unknown[]) => mockKvPut(...args), get: vi.fn().mockResolvedValue(null), delete: vi.fn().mockResolvedValue(undefined) } }, ctx: { waitUntil: vi.fn() } })),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -839,7 +839,7 @@ describe("POST /api/daemon/tasks/poll", () => {
 
   // --- Heartbeat cache invalidation ---
 
-  it("invalidates allRuntimes cache on every poll heartbeat", async () => {
+  it("does NOT invalidate allRuntimes cache on poll heartbeat (prevents cache thrashing)", async () => {
     mockUpsertMachine.mockResolvedValue({});
     mockGetRuntimeIdsByDaemon.mockResolvedValue(["r1"]);
     mockSweepStaleState.mockResolvedValue(undefined);
@@ -848,7 +848,7 @@ describe("POST /api/daemon/tasks/poll", () => {
 
     await POST(postReq({ daemon_id: "d1" }));
 
-    expect(mockInvalidate).toHaveBeenCalledWith("runtimes:w1");
+    expect(mockInvalidate).not.toHaveBeenCalledWith("runtimes:w1");
   });
 
   it("writes KV heartbeat with 120s TTL", async () => {

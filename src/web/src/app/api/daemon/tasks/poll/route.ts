@@ -12,9 +12,9 @@ import { broadcastToUser } from "@/lib/broadcast";
 import { log } from "@/lib/logger";
 
 export const POST = withAuth(async (req: NextRequest, ctx) => {
-  const { env } = getCloudflareContext();
+  const { env, ctx: cfCtx } = getCloudflareContext();
   const db = getDb((env as Env).DB);
-  const { cached, cacheKeys, throttled, invalidate } = await import("@/lib/cache");
+  const { cached, cacheKeys, throttled } = await import("@/lib/cache");
 
   const [body, err] = await parseBody(req, PollRequestSchema);
   if (err) return err;
@@ -45,7 +45,6 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       new Date().toISOString(),
       { expirationTtl: 120 },
     ).catch(() => {});
-    invalidate(cacheKeys.allRuntimes(ctx.workspaceId)).catch(() => {});
   }
   try {
     await throttled(
@@ -70,16 +69,16 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     status: "online",
   }).catch(() => {});
 
-  // 3. Housekeeping: sweep stale state — non-critical
-  try {
-    await sweepStaleState(db, ctx.workspaceId);
-  } catch (e) {
-    log.warn("sweep failed", { workspaceId: ctx.workspaceId, err: String(e) });
-  }
+  // 3. Housekeeping: sweep stale state — non-blocking (runs after response is sent)
+  cfCtx.waitUntil(
+    sweepStaleState(db, ctx.workspaceId).catch((e) => {
+      log.warn("sweep failed", { workspaceId: ctx.workspaceId, err: String(e) });
+    })
+  );
 
-  // 3b. Promote due calendar events — throttled to once per 30s per workspace
-  try {
-    await throttled(`cal:${ctx.workspaceId}`, 30, async () => {
+  // 3b. Promote due calendar events — non-blocking, throttled to once per 30s per workspace
+  cfCtx.waitUntil(
+    throttled(`cal:${ctx.workspaceId}`, 30, async () => {
       const enqueued = await promoteDueCalendarEventsForWorkspace(
         db,
         ctx.workspaceId!,
@@ -87,13 +86,13 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
       if (enqueued > 0) {
         log.info("calendar: enqueued", { workspaceId: ctx.workspaceId, enqueued });
       }
-    });
-  } catch (err) {
-    log.warn("calendar: promote failed", {
-      workspaceId: ctx.workspaceId,
-      err: String(err),
-    });
-  }
+    }).catch((err) => {
+      log.warn("calendar: promote failed", {
+        workspaceId: ctx.workspaceId,
+        err: String(err),
+      });
+    })
+  );
 
   // 4. Task claiming
   const taskService = new TaskService(db);

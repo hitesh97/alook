@@ -9,7 +9,7 @@ const mockCreateAgent = vi.fn();
 const mockGetAgent = vi.fn();
 const mockGetAgentRuntimeForWorkspace = vi.fn();
 
-vi.mock("@/lib/db", () => ({ getDb: vi.fn(() => ({})) }));
+vi.mock("@/lib/db", () => ({ getDb: vi.fn(() => ({})), getReadDb: vi.fn(() => ({})) }));
 
 vi.mock("@alook/shared", async () => {
   const actual = await vi.importActual("@alook/shared");
@@ -56,10 +56,6 @@ vi.mock("@/lib/services/task", () => {
   };
   return { TaskService: Svc };
 });
-
-vi.mock("@/lib/services/sweep", () => ({
-  sweepStaleState: vi.fn().mockResolvedValue(undefined),
-}));
 
 vi.mock("@/lib/cache", () => ({
   invalidate: vi.fn(),
