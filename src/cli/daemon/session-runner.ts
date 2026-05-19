@@ -413,6 +413,16 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
 
       const msg = iterResult.value;
       seq++;
+
+      if (msg.type === "tool-use") toolCount++;
+      if (msg.type === "tool-result" && msg.output && msg.output.length > 500) {
+        log.info(JSON.stringify({ role: "assistant", ...msg, output: msg.output.slice(0, 500) + `... (${msg.output.length} chars)` }));
+      } else {
+        log.info(JSON.stringify({ role: "assistant", ...msg }));
+      }
+
+      if (msg.type === "status" || msg.type === "log") continue;
+
       pendingMessages.push({
         seq,
         type: msg.type,
@@ -422,13 +432,6 @@ export async function runSession(input: SessionRunnerInput): Promise<void> {
         input: msg.input,
         output: msg.output,
       });
-
-      if (msg.type === "tool-use") toolCount++;
-      if (msg.type === "tool-result" && msg.output && msg.output.length > 500) {
-        log.info(JSON.stringify({ role: "assistant", ...msg, output: msg.output.slice(0, 500) + `... (${msg.output.length} chars)` }));
-      } else {
-        log.info(JSON.stringify({ role: "assistant", ...msg }));
-      }
 
       // Timeline — record assistant text messages
       if (msg.type === "text" && msg.content) {
