@@ -5,6 +5,8 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { getAllPosts, getPostBySlug } from "@/lib/blog/posts";
 import { highlightCodeBlocks } from "@/lib/blog/highlight";
 
+export const dynamicParams = false;
+
 export function generateStaticParams(): { slug: string }[] {
   return getAllPosts().map((post) => ({ slug: post.slug }));
 }

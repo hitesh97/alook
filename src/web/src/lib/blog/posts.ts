@@ -97,6 +97,50 @@ const posts: BlogPost[] = [
 
 <p>Alook is open source. You can spin up your first agent team today — on your machine, with your data, under your control. No vendor lock-in, no token limits that throttle you at the worst moment, no data leaving your infrastructure.</p>
 
+<p>Here's how quick it is to define an agent:</p>
+
+<pre><code class="language-typescript">import { createAgent } from "@alook/sdk";
+
+const writer = createAgent({
+  name: "writer",
+  role: "Content Writer",
+  instructions: "Draft blog posts, social copy, and email sequences.",
+  tools: ["web-search", "email-send", "file-write"],
+});
+
+await writer.start();
+</code></pre>
+
+<p>Need agents to collaborate? They can message each other directly:</p>
+
+<pre><code class="language-typescript">const planner = createAgent({
+  name: "planner",
+  role: "Project Planner",
+  instructions: "Break goals into tasks. Assign to teammates.",
+  teammates: [writer, coder],
+});
+
+// Planner delegates to writer automatically
+await planner.run("Launch blog post about our new feature");
+</code></pre>
+
+<p>Or configure the whole team in a single YAML file:</p>
+
+<pre><code class="language-yaml">team:
+  - name: builder
+    role: Full-Stack Developer
+    tools: [github, terminal, code-review]
+
+  - name: communicator
+    role: Outreach & Comms
+    tools: [email, calendar, slack]
+
+  - name: planner
+    role: Project Manager
+    tools: [task-board, teammates]
+    teammates: [builder, communicator]
+</code></pre>
+
 <p>Start with one agent. Give it a clear role. Let it prove itself. Then add another. Before you know it, you're running a company — not just working in one.</p>
 `,
   },

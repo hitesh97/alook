@@ -22,7 +22,14 @@ function detectLanguage(code: string): string {
 }
 
 export async function highlightCodeBlocks(html: string): Promise<string> {
-  const hl = await getHighlighter();
+  if (!html.includes("<pre><code")) return html;
+
+  let hl: Highlighter;
+  try {
+    hl = await getHighlighter();
+  } catch {
+    return html;
+  }
 
   return html.replace(
     /<pre><code(?:\s+class="language-(\w+)")?>([\s\S]*?)<\/code><\/pre>/g,
