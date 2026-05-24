@@ -17,9 +17,6 @@ export class OpenCodeBackend implements AgentBackend {
     if (options.resumeSessionId) {
       args.push("--session", options.resumeSessionId);
     }
-    if (options.cwd) {
-      args.push("--dir", options.cwd);
-    }
 
     // User prompt as positional argument (no flag)
     args.push(prompt);
