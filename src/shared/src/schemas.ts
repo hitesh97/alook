@@ -589,7 +589,7 @@ export const EmailNotifyRequestSchema = z.object({
   r2Key: z.string().min(1),
   from: z.string().min(1),
   to: z.string().optional(),
-  subject: z.string().min(1),
+  subject: z.string(),
   isWhitelisted: z.boolean(),
   forwarded: z.boolean().optional().default(false),
   messageId: z.string().optional().default(""),
