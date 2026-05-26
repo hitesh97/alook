@@ -200,9 +200,9 @@ export function FeatureShowcase() {
 
 function FeaturePanel({ feature, reversed }: { feature: Feature; reversed: boolean }) {
   return (
-    <div className={`feature-row grid w-full grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-16 ${reversed ? "lg:[direction:rtl]" : ""}`}>
+    <div className="feature-row grid w-full grid-cols-1 items-center gap-8 lg:grid-cols-2 lg:gap-16">
       {/* Text side */}
-      <div className={`panel-text text-center lg:text-left ${reversed ? "lg:[direction:ltr]" : ""}`}>
+      <div className={`panel-text text-center lg:text-left ${reversed ? "lg:order-2" : ""}`}>
         <div className="mb-2 flex items-baseline justify-center gap-3 lg:justify-start">
           <span
             className="text-3xl"
@@ -245,7 +245,7 @@ function FeaturePanel({ feature, reversed }: { feature: Feature; reversed: boole
       </div>
 
       {/* Flip card */}
-      <div className={`mx-auto w-full max-w-sm sm:max-w-md ${reversed ? "lg:[direction:ltr]" : ""}`} style={{ isolation: "isolate" }}>
+      <div className={`mx-auto w-full max-w-sm sm:max-w-md ${reversed ? "lg:order-1" : ""}`} style={{ isolation: "isolate" }}>
         <FlipCard feature={feature} />
       </div>
     </div>
@@ -270,42 +270,17 @@ function FlipCard({ feature }: { feature: Feature }) {
       >
         {/* Front — ASCII art */}
         <div
-          className="flip-card-front rounded-lg p-2"
+          className="flip-card-front crt-panel-outer"
           style={{
             backfaceVisibility: "hidden",
             WebkitBackfaceVisibility: "hidden",
             pointerEvents: flipped ? "none" : undefined,
-            backgroundColor: "oklch(0.82 0.02 75)",
             boxShadow:
               "0 4px 16px oklch(0.15 0.01 55 / 15%), inset 0 1px 0 oklch(0.95 0.01 80 / 40%)",
           }}
         >
-          <div
-            className="relative overflow-hidden rounded p-5"
-            style={{
-              backgroundColor: "var(--landing-crt-bg)",
-              boxShadow: "inset 0 0 40px oklch(0.04 0.003 55)",
-            }}
-          >
-            {/* Scan lines */}
-            <div
-              className="pointer-events-none absolute inset-0 z-10"
-              style={{
-                backgroundImage:
-                  "repeating-linear-gradient(to bottom, transparent 0px, transparent 1px, oklch(0 0 0 / 6%) 1px, oklch(0 0 0 / 6%) 2px)",
-                backgroundSize: "100% 2px",
-              }}
-            />
-            {/* Vignette */}
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(ellipse at center, transparent 60%, oklch(0.04 0.003 55 / 50%) 100%)",
-              }}
-            />
-            {/* ASCII art */}
-            <div className="relative z-20 flex items-center justify-center min-h-35">
+          <div className="crt-panel-inner p-5">
+            <div className="flex items-center justify-center min-h-35">
               <AnimatedArt lines={feature.terminal} />
             </div>
           </div>
@@ -358,7 +333,7 @@ function AnimatedArt({ lines }: { lines: string[] }) {
 
   useEffect(() => {
     if (!preRef.current) return;
-    if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
     const text = lines.join("\n");
     const chars = [...text];
@@ -373,35 +348,40 @@ function AnimatedArt({ lines }: { lines: string[] }) {
     });
 
     let frame = 0;
-    let animId: number;
-    let visible = false;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => { visible = entry.isIntersecting; },
-      { threshold: 0.1 }
-    );
-    observer.observe(preRef.current);
+    let animId: number | null = null;
 
     const animate = () => {
-      if (visible) {
-        frame++;
-        if (frame % 2 === 0) {
-          const buf: string[] = [];
-          for (let i = 0; i < meta.length; i++) {
-            const m = meta[i];
-            if (m.level <= 0) { buf.push(m.orig); continue; }
-            const wave = Math.sin(frame * 0.015 + m.row * 0.45 + m.col * 0.1);
-            const shifted = Math.max(1, Math.min(4, m.level + Math.round(wave)));
-            buf.push(DENSITY[shifted]);
-          }
-          if (preRef.current) preRef.current.textContent = buf.join("");
+      frame++;
+      if (frame % 2 === 0) {
+        const buf: string[] = [];
+        for (let i = 0; i < meta.length; i++) {
+          const m = meta[i];
+          if (m.level <= 0) { buf.push(m.orig); continue; }
+          const wave = Math.sin(frame * 0.015 + m.row * 0.45 + m.col * 0.1);
+          const shifted = Math.max(1, Math.min(4, m.level + Math.round(wave)));
+          buf.push(DENSITY[shifted]);
         }
+        if (preRef.current) preRef.current.textContent = buf.join("");
       }
       animId = requestAnimationFrame(animate);
     };
 
-    animId = requestAnimationFrame(animate);
-    return () => { cancelAnimationFrame(animId); observer.disconnect(); };
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          if (animId === null) animId = requestAnimationFrame(animate);
+        } else {
+          if (animId !== null) { cancelAnimationFrame(animId); animId = null; }
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(preRef.current);
+
+    return () => {
+      if (animId !== null) cancelAnimationFrame(animId);
+      observer.disconnect();
+    };
   }, [lines]);
 
   return (

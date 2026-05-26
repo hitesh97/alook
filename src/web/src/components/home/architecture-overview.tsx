@@ -66,53 +66,28 @@ function ZoneCard({
 
       <div className="space-y-2.5">
         {items.map((item) => (
-          <div
-            key={item.label}
-            className="rounded-lg p-1.5"
-            style={{
-              backgroundColor: "oklch(0.82 0.02 75)",
-              boxShadow:
-                "0 2px 8px oklch(0.15 0.01 55 / 10%), inset 0 1px 0 oklch(0.95 0.01 80 / 40%)",
-            }}
-          >
-            <div
-              className="relative overflow-hidden rounded px-4 py-3"
-              style={{
-                backgroundColor: "var(--landing-crt-bg)",
-                boxShadow: "inset 0 0 20px oklch(0.04 0.003 55)",
-              }}
-            >
-              {/* Scan lines */}
+          <div key={item.label} className="crt-panel-outer">
+            <div className="crt-panel-inner px-4 py-3">
               <div
-                className="pointer-events-none absolute inset-0 z-10"
+                className="text-xs font-medium"
                 style={{
-                  backgroundImage:
-                    "repeating-linear-gradient(to bottom, transparent 0px, transparent 1px, oklch(0 0 0 / 6%) 1px, oklch(0 0 0 / 6%) 2px)",
-                  backgroundSize: "100% 2px",
+                  fontFamily: "var(--font-crt)",
+                  color: "var(--landing-phosphor)",
+                  textShadow: "0 0 6px oklch(0.75 0.18 80 / 30%)",
                 }}
-              />
-              <div className="relative z-20">
-                <div
-                  className="text-xs font-medium"
-                  style={{
-                    fontFamily: "var(--font-crt)",
-                    color: "var(--landing-phosphor)",
-                    textShadow: "0 0 6px oklch(0.75 0.18 80 / 30%)",
-                  }}
-                >
-                  {item.label}
-                </div>
-                <div
-                  className="mt-0.5 text-[11px] leading-relaxed"
-                  style={{
-                    fontFamily: "var(--font-crt)",
-                    color: "var(--landing-phosphor)",
-                    textShadow: "0 0 6px oklch(0.75 0.18 80 / 30%)",
-                    opacity: 0.55,
-                  }}
-                >
-                  {item.detail}
-                </div>
+              >
+                {item.label}
+              </div>
+              <div
+                className="mt-0.5 text-[11px] leading-relaxed"
+                style={{
+                  fontFamily: "var(--font-crt)",
+                  color: "var(--landing-phosphor)",
+                  textShadow: "0 0 6px oklch(0.75 0.18 80 / 30%)",
+                  opacity: 0.55,
+                }}
+              >
+                {item.detail}
               </div>
             </div>
           </div>
@@ -275,7 +250,7 @@ export function ArchitectureOverview() {
   return (
     <section
       ref={sectionRef}
-      className="relative flex min-h-screen flex-col items-center justify-center px-6 py-32"
+      className="relative flex flex-col items-center justify-center px-6 py-24 lg:py-32"
       style={{ backgroundColor: "var(--landing-bg)" }}
     >
       {/* Section title */}

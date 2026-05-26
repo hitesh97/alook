@@ -8,7 +8,7 @@ export function MarketingNav({ isLoggedIn }: { isLoggedIn: boolean }) {
     <nav
       className="marketing-nav fixed top-0 right-0 left-0 z-50 invisible opacity-0"
       style={{
-        backgroundColor: "oklch(0.93 0.015 80 / 90%)",
+        backgroundColor: "var(--landing-bg-translucent)",
         backdropFilter: "blur(8px)",
         borderBottom: "1px solid var(--landing-border)",
       }}

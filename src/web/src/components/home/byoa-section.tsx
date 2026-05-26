@@ -29,39 +29,10 @@ function AgentCard({ agent }: { agent: Agent }) {
 
   return (
     <div
-      className="byoa-card rounded-lg p-1.5"
-      style={{
-        backgroundColor: "oklch(0.82 0.02 75)",
-        boxShadow:
-          "0 2px 8px oklch(0.15 0.01 55 / 10%), inset 0 1px 0 oklch(0.95 0.01 80 / 40%)",
-        opacity: dimmed ? 0.55 : 1,
-      }}
+      className="byoa-card crt-panel-outer"
+      style={{ opacity: dimmed ? 0.55 : 1 }}
     >
-      <div
-        className="relative overflow-hidden rounded px-5 py-4"
-        style={{
-          backgroundColor: "var(--landing-crt-bg)",
-          boxShadow: "inset 0 0 20px oklch(0.04 0.003 55)",
-        }}
-      >
-        {/* Scan lines */}
-        <div
-          className="pointer-events-none absolute inset-0 z-10"
-          style={{
-            backgroundImage:
-              "repeating-linear-gradient(to bottom, transparent 0px, transparent 1px, oklch(0 0 0 / 6%) 1px, oklch(0 0 0 / 6%) 2px)",
-            backgroundSize: "100% 2px",
-          }}
-        />
-        {/* Vignette */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, transparent 60%, oklch(0.04 0.003 55 / 50%) 100%)",
-          }}
-        />
-        <div className="relative z-20">
+      <div className="crt-panel-inner px-5 py-4">
           <div className="flex items-center gap-3">
             <div
               className="flex shrink-0 items-center justify-center rounded"
@@ -121,7 +92,6 @@ function AgentCard({ agent }: { agent: Agent }) {
               </div>
             </div>
           </div>
-        </div>
       </div>
     </div>
   );

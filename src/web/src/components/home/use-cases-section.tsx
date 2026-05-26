@@ -669,6 +669,7 @@ const scenarios: Scenario[] = [
 export function UseCasesSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [slideDir, setSlideDir] = useState<"left" | "right">("left");
 
   useGSAP(
     () => {
@@ -746,7 +747,7 @@ export function UseCasesSection() {
             <button
               key={scenario.id}
               type="button"
-              onClick={() => setActiveIndex(i)}
+              onClick={() => { setSlideDir(i > activeIndex ? "left" : "right"); setActiveIndex(i); }}
               className={`flex items-start gap-3 rounded-xl px-4 py-3 text-left transition-all duration-200 cursor-pointer shrink-0 md:shrink md:w-full ${
                 i === activeIndex
                   ? "ring-1 ring-[var(--landing-border)] shadow-sm"
@@ -776,15 +777,27 @@ export function UseCasesSection() {
                 >
                   {scenario.title}
                 </div>
+                {i === activeIndex && (
+                  <div
+                    className="mt-0.5 text-[11px] leading-snug hidden md:block"
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--landing-text-muted)",
+                    }}
+                  >
+                    {scenario.subtitle}
+                  </div>
+                )}
               </div>
             </button>
           ))}
         </div>
 
         {/* Right: Demo panel */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden rounded-2xl" style={{ backgroundColor: "var(--landing-bg)", perspective: "1200px" }}>
           <div
-            className="rounded-2xl overflow-hidden"
+            key={activeIndex}
+            className={`rounded-2xl overflow-hidden ${slideDir === "left" ? "usecase-demo-slide-left" : "usecase-demo-slide-right"}`}
             style={{
               backgroundColor: "var(--landing-surface)",
               border: "1px solid var(--landing-border)",
@@ -807,53 +820,14 @@ export function UseCasesSection() {
               </span>
             </div>
 
-            {/* Demo content area — scoped with app design tokens */}
-            <div
-              className="usecase-demo-panel h-120 overflow-y-auto thin-scrollbar"
-            >
-              <ActiveDemo key={activeIndex} />
+            {/* Demo content area */}
+            <div className="usecase-demo-panel h-120 overflow-y-auto thin-scrollbar">
+              <ActiveDemo />
             </div>
           </div>
         </div>
       </div>
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .usecase-demo-panel {
-          --background: oklch(0.995 0.003 80);
-          --foreground: oklch(0.18 0.01 60);
-          --card: oklch(1 0.003 80);
-          --primary: oklch(0.25 0.012 60);
-          --primary-foreground: oklch(0.985 0.005 80);
-          --muted: oklch(0.93 0.008 80);
-          --muted-foreground: oklch(0.52 0.01 60);
-          --accent: oklch(0.92 0.012 80);
-          --border: oklch(0.915 0.008 80);
-          background-color: oklch(0.995 0.003 80);
-          color: oklch(0.18 0.01 60);
-        }
-        .usecase-demo-panel .thin-scrollbar,
-        .usecase-demo-panel.thin-scrollbar {
-          scrollbar-color: oklch(0.915 0.008 80) transparent;
-        }
-        .usecase-layout .thin-scrollbar {
-          scrollbar-color: oklch(0.75 0.01 55 / 30%) transparent;
-        }
-        .usecase-anim-item {
-          opacity: 0;
-          transform: translateY(8px);
-          animation: usecase-fade-up 0.4s ease-out forwards;
-        }
-        @keyframes usecase-fade-up {
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .usecase-anim-item {
-            opacity: 1;
-            transform: none;
-            animation: none;
-          }
-        }
-      ` }} />
     </section>
   );
 }

@@ -138,6 +138,7 @@
 /* ── Homepage "1980s CRT Nostalgia" scoped tokens ── */
 .landing {
   --landing-bg: oklch(0.93 0.015 80);
+  --landing-bg-translucent: oklch(0.93 0.015 80 / 90%);
   --landing-surface: oklch(0.88 0.02 75);
   --landing-text: oklch(0.15 0.01 55);
   --landing-text-muted: oklch(0.45 0.01 55);
@@ -160,8 +161,66 @@
   --tw-roller: oklch(0.15 0.01 55);
 }
 
+/* ─── CRT panel reusable styles ─── */
+.crt-panel-outer {
+  border-radius: 8px;
+  padding: 6px;
+  background-color: oklch(0.82 0.02 75);
+  box-shadow: 0 2px 8px oklch(0.15 0.01 55 / 10%), inset 0 1px 0 oklch(0.95 0.01 80 / 40%);
+}
+.crt-panel-inner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: var(--landing-crt-bg);
+  box-shadow: inset 0 0 20px oklch(0.04 0.003 55);
+}
+.crt-panel-inner::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  background-image: repeating-linear-gradient(to bottom, transparent 0px, transparent 1px, oklch(0 0 0 / 6%) 1px, oklch(0 0 0 / 6%) 2px);
+  background-size: 100% 2px;
+}
+.crt-panel-inner::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 60%, oklch(0.04 0.003 55 / 50%) 100%);
+}
+.crt-panel-inner > * {
+  position: relative;
+  z-index: 20;
+}
+
 /* ─── Feature flip cards ─── */
+.flip-card {
+  position: relative;
+}
+.flip-card::after {
+  content: "tap to flip";
+  position: absolute;
+  bottom: 8px;
+  right: 12px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--landing-text-muted);
+  opacity: 0.5;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
 @media (hover: hover) {
+  .flip-card::after {
+    content: "hover to flip";
+  }
+  .flip-card:hover::after {
+    opacity: 0;
+  }
   .flip-card:hover .flip-card-inner {
     transform: rotateY(180deg);
   }
@@ -173,6 +232,61 @@
 @media (prefers-reduced-motion: reduce) {
   .flip-card-inner {
     transition-duration: 0s !important;
+  }
+}
+
+/* ─── Use Cases demo panel ─── */
+.usecase-demo-panel {
+  --background: oklch(0.995 0.003 80);
+  --foreground: oklch(0.18 0.01 60);
+  --card: oklch(1 0.003 80);
+  --primary: oklch(0.25 0.012 60);
+  --primary-foreground: oklch(0.985 0.005 80);
+  --muted: oklch(0.93 0.008 80);
+  --muted-foreground: oklch(0.52 0.01 60);
+  --accent: oklch(0.92 0.012 80);
+  --border: oklch(0.915 0.008 80);
+  background-color: oklch(0.995 0.003 80);
+  color: oklch(0.18 0.01 60);
+}
+.usecase-demo-panel .thin-scrollbar,
+.usecase-demo-panel.thin-scrollbar {
+  scrollbar-color: oklch(0.915 0.008 80) transparent;
+}
+.usecase-layout .thin-scrollbar {
+  scrollbar-color: oklch(0.75 0.01 55 / 30%) transparent;
+}
+.usecase-anim-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: usecase-fade-up 0.4s ease-out forwards;
+}
+@keyframes usecase-fade-up {
+  to { opacity: 1; transform: translateY(0); }
+}
+.usecase-demo-slide-left {
+  animation: ipod-slide-in-left 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+.usecase-demo-slide-right {
+  animation: ipod-slide-in-right 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
+}
+@keyframes ipod-slide-in-left {
+  0% { transform: translateX(60%) rotateY(-25deg) scale(0.9); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(0) rotateY(0deg) scale(1); opacity: 1; }
+}
+@keyframes ipod-slide-in-right {
+  0% { transform: translateX(-60%) rotateY(25deg) scale(0.9); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(0) rotateY(0deg) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .usecase-anim-item,
+  .usecase-demo-slide-left,
+  .usecase-demo-slide-right {
+    opacity: 1;
+    transform: none;
+    animation: none;
   }
 }
 

@@ -75,28 +75,17 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
 
       <div className="hero-content relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center px-4 sm:px-6">
         {/* Brand */}
-        <div className="hero-brand mb-6 flex flex-col sm:flex-row items-center gap-1.5">
-          <div className="flex items-center gap-1">
-            <Image src="/alook.svg" alt="Alook" width={28} height={28} />
-            <span
-              className="text-xl tracking-tight"
-              style={{
-                fontFamily: "var(--font-brand)",
-                color: "var(--landing-text)",
-                fontWeight: 700,
-              }}
-            >
-              Alook
-            </span>
-          </div>
+        <div className="hero-brand mb-6 flex items-center gap-1.5">
+          <Image src="/alook.svg" alt="Alook" width={32} height={32} />
           <span
-            className="sm:ml-4 text-xs tracking-widest uppercase"
+            className="text-2xl tracking-tight"
             style={{
-              fontFamily: "var(--font-mono)",
-              color: "var(--landing-text-muted)",
+              fontFamily: "var(--font-brand)",
+              color: "var(--landing-text)",
+              fontWeight: 700,
             }}
           >
-            Your Personal Company
+            Alook
           </span>
         </div>
 
@@ -207,7 +196,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
               fontFamily: "var(--font-mono)",
               color: "var(--landing-bg)",
               backgroundColor: "var(--landing-text)",
-              letterSpacing: "0.05em",
+              letterSpacing: "0.12em",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -223,7 +212,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
                 fontFamily: "var(--font-mono)",
                 color: "var(--landing-bg)",
                 backgroundColor: "var(--landing-text)",
-                letterSpacing: "0.05em",
+                letterSpacing: "0.12em",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -241,7 +230,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
                 fontFamily: "var(--font-mono)",
                 color: "var(--landing-bg)",
                 backgroundColor: "var(--landing-text)",
-                letterSpacing: "0.05em",
+                letterSpacing: "0.12em",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -259,7 +248,7 @@ export function HeroSection({ isLoggedIn }: { isLoggedIn: boolean }) {
               fontFamily: "var(--font-mono)",
               color: "var(--landing-text)",
               border: "1px solid var(--landing-text)",
-              letterSpacing: "0.05em",
+              letterSpacing: "0.12em",
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

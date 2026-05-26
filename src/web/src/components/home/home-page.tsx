@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -26,19 +26,18 @@ const CloudCodeMonsterPet = dynamic<CloudCodeMonsterPetProps>(
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
-// Respect reduced motion preference
-if (typeof window !== "undefined") {
-  const prefersReducedMotion = window.matchMedia(
-    "(prefers-reduced-motion: reduce)"
-  ).matches;
-  if (prefersReducedMotion) {
-    gsap.globalTimeline.timeScale(20); // effectively skip animations
-  }
-}
-
 export function HomePage({ isLoggedIn }: { isLoggedIn: boolean }) {
   const mainRef = useRef<HTMLDivElement>(null);
   const petSettings = useHomePetSettings();
+
+  useEffect(() => {
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (prefersReducedMotion) {
+      gsap.globalTimeline.timeScale(20);
+    }
+  }, []);
 
   useGSAP(
     () => {
