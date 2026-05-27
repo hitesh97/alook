@@ -324,14 +324,19 @@ export class TaskService {
         context: { target_task_id: activeTask.id },
       });
 
+      // Dispatch (claim) the kill task so it arrives at the daemon in "dispatched" status,
+      // allowing the daemon to call failTask without a status mismatch error.
+      await taskQueries.dispatchTaskById(this.db, killTask.id, workspaceId);
+
       const runtime = await queries.runtime.getAgentRuntime(this.db, activeTask.runtimeId);
       if (runtime) {
         broadcastToDaemon(runtime.daemonId, {
           type: "daemon.kill",
           workspaceId,
+          agentId: activeTask.agentId,
           taskId: killTask.id,
           targetTaskId: activeTask.id,
-        }).catch(() => {});
+        }).catch((e) => log.warn("daemon.kill broadcast failed, relying on poll fallback", e));
       }
     }
 

@@ -16,6 +16,8 @@ import { handleCliUpdate, isUpdating, readUpdateMarker, clearUpdateMarker } from
 import { findRunningPidByTaskId, findRunningEntryByContextKey, updateEntry } from "./execenv/timeline.js";
 import {
   writeKillIntent,
+  readKillIntent,
+  clearKillIntent,
   acquireSteeringLock,
   releaseSteeringLock,
   cleanupStaleIntents,
@@ -580,17 +582,17 @@ export async function startDaemon(
 
       case "daemon.kill": {
         const ws = workspaceStates.find((w) => w.workspaceId === msg.workspaceId);
-        if (ws) {
+        if (ws && !activeTasks.has(msg.taskId)) {
           const killTask = fromApiTask({
             id: msg.taskId,
-            agent_id: "",
+            agent_id: msg.agentId,
             runtime_id: "",
             conversation_id: "",
             workspace_id: ws.workspaceId,
             prompt: "",
-            status: "queued",
+            status: "dispatched",
             priority: 0,
-            dispatched_at: null,
+            dispatched_at: new Date().toISOString(),
             started_at: null,
             completed_at: null,
             result: null,
@@ -1032,13 +1034,21 @@ async function handleTask(
   child.on("close", async (code) => {
     activeTasks.delete(task.id);
     if (code !== 0) {
+      const agentBaseDir = join(config.workspacesRoot, task.workspaceId, task.agentId, "workdir");
+      const killIntent = readKillIntent(agentBaseDir, task.id);
+      if (killIntent) {
+        log.info(`Task ${task.id} exited due to kill intent — skipping failTask`);
+        clearKillIntent(agentBaseDir, task.id);
+        return;
+      }
+
       const msg = code === null
         ? `session-runner killed by signal (task ${task.id})`
         : `session-runner crashed (exit code ${code}, task ${task.id})`;
       log.warn(msg);
 
       // Update timeline JSONL as fallback
-      const timelineDir = join(config.workspacesRoot, task.workspaceId, task.agentId, "workdir", ".context_timeline");
+      const timelineDir = join(agentBaseDir, ".context_timeline");
       updateEntry(timelineDir, task.id, (entry) => {
         entry.pid = null;
         entry.status = "failed";
