@@ -188,6 +188,9 @@ export function ChannelBar() {
           </TooltipContent>
         </Tooltip>
       )}
+
+      {/* Spacer to preserve right padding when content overflows */}
+      <div className="shrink-0 w-1" />
     </div>
   );
 }
