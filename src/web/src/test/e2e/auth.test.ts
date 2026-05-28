@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest"
 import { randomUUID } from "crypto"
-import { signUp, signIn, sessionRequest } from "../helpers/auth"
-import { sql } from "../helpers/db"
+import { signUp, signIn, sessionRequest, sqlRun } from "@alook/test-utils"
 
 const APP_URL = process.env.APP_URL ?? "http://localhost:3000"
 
@@ -38,9 +37,9 @@ describe("auth", () => {
   // Cleanup: remove test user created by sign-up
   afterAll(() => {
     try {
-      sql(`DELETE FROM "session" WHERE userId IN (SELECT id FROM "user" WHERE email = '${testEmail}')`)
-      sql(`DELETE FROM "account" WHERE userId IN (SELECT id FROM "user" WHERE email = '${testEmail}')`)
-      sql(`DELETE FROM "user" WHERE email = '${testEmail}'`)
+      sqlRun(`DELETE FROM "session" WHERE userId IN (SELECT id FROM "user" WHERE email = ?)`, testEmail)
+      sqlRun(`DELETE FROM "account" WHERE userId IN (SELECT id FROM "user" WHERE email = ?)`, testEmail)
+      sqlRun(`DELETE FROM "user" WHERE email = ?`, testEmail)
     } catch { /* ignore cleanup errors */ }
   })
 })

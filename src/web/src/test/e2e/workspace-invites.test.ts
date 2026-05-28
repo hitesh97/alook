@@ -1,8 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { randomUUID } from "crypto"
-import { seedTestData, cleanupTestData, type TestSeed } from "../helpers/seed"
-import { signUp, signIn, sessionRequest, tokenRequest } from "../helpers/auth"
-import { sql } from "../helpers/db"
+import { seedTestData, cleanupTestData, type TestSeed, signUp, signIn, sessionRequest, tokenRequest, sqlRun } from "@alook/test-utils"
 
 let seed: TestSeed
 
@@ -19,10 +17,10 @@ beforeAll(async () => {
 afterAll(() => {
   cleanupTestData(seed)
   try {
-    sql(`DELETE FROM member WHERE user_id IN (SELECT id FROM "user" WHERE email = '${inviteeEmail}')`)
-    sql(`DELETE FROM "session" WHERE userId IN (SELECT id FROM "user" WHERE email = '${inviteeEmail}')`)
-    sql(`DELETE FROM "account" WHERE userId IN (SELECT id FROM "user" WHERE email = '${inviteeEmail}')`)
-    sql(`DELETE FROM "user" WHERE email = '${inviteeEmail}'`)
+    sqlRun(`DELETE FROM member WHERE user_id IN (SELECT id FROM "user" WHERE email = ?)`, inviteeEmail)
+    sqlRun(`DELETE FROM "session" WHERE userId IN (SELECT id FROM "user" WHERE email = ?)`, inviteeEmail)
+    sqlRun(`DELETE FROM "account" WHERE userId IN (SELECT id FROM "user" WHERE email = ?)`, inviteeEmail)
+    sqlRun(`DELETE FROM "user" WHERE email = ?`, inviteeEmail)
   } catch { /* ignore */ }
 }, 60_000)
 

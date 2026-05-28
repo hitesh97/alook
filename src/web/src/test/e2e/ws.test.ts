@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { randomUUID } from "crypto"
-import { signUp, signIn, sessionRequest } from "../helpers/auth"
-import { sql } from "../helpers/db"
+import { signUp, signIn, sessionRequest, sqlRun } from "@alook/test-utils"
 
 const WS_DO_PORT = Number(process.env.NEXT_PUBLIC_WS_DO_PORT) || 8789
 const WS_DO_HTTP = `http://localhost:${WS_DO_PORT}`
@@ -89,9 +88,9 @@ describe("ws (dev direct to ws-do)", () => {
 
   afterAll(() => {
     try {
-      sql(`DELETE FROM "session" WHERE userId IN (SELECT id FROM "user" WHERE email = '${testEmail}')`)
-      sql(`DELETE FROM "account" WHERE userId IN (SELECT id FROM "user" WHERE email = '${testEmail}')`)
-      sql(`DELETE FROM "user" WHERE email = '${testEmail}'`)
+      sqlRun(`DELETE FROM "session" WHERE userId IN (SELECT id FROM "user" WHERE email = ?)`, testEmail)
+      sqlRun(`DELETE FROM "account" WHERE userId IN (SELECT id FROM "user" WHERE email = ?)`, testEmail)
+      sqlRun(`DELETE FROM "user" WHERE email = ?`, testEmail)
     } catch { /* ignore */ }
   })
 

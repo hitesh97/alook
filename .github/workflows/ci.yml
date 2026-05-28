@@ -67,14 +67,23 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Create .dev.vars for local bindings
-        run: printf 'BETTER_AUTH_SECRET=ci-e2e-secret\nBETTER_AUTH_URL=http://localhost:3000\nDEVICE_CLIENT_IDS=e2e-test-client\n' > src/web/.dev.vars
+        run: printf 'BETTER_AUTH_SECRET=ci-e2e-secret\nBETTER_AUTH_URL=http://localhost:3000\nDEVICE_CLIENT_IDS=e2e-test-client\nENCRYPTION_KEY=ci-e2e-encryption-key-32chars!!\n' > src/web/.dev.vars
       - run: pnpm run db:migrate
       - name: Start dev servers
         run: |
           pnpm --filter @alook/email-worker dev &
+          pnpm --filter @alook/ws-do dev &
           pnpm --filter @alook/web dev &
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for email-worker (localhost:8787)..."
+          until curl -sf http://localhost:8787/health; do sleep 2; done
+          echo "Waiting for ws-do (localhost:8789)..."
+          until curl -sf http://localhost:8789/health; do sleep 2; done
+          echo "Waiting for web app (localhost:3000)..."
           until curl -sf http://localhost:3000/api/health; do sleep 2; done
       - run: pnpm test:e2e
+      - run: pnpm --filter @alook/cli run test:integration
 
   build:
     name: Build

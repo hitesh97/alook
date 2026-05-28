@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { seedTestData, cleanupTestData, type TestSeed } from "../helpers/seed"
-import { tokenRequest } from "../helpers/auth"
-import { sql, sqlQuery } from "../helpers/db"
+import { seedTestData, cleanupTestData, type TestSeed, tokenRequest, sqlRun, sqlQuery } from "@alook/test-utils"
 
 let seed: TestSeed
 let conversationId: string
@@ -24,8 +22,8 @@ beforeAll(async () => {
 
   activeTaskId = `task_${Date.now()}`
   const now = new Date().toISOString()
-  sql(
-    `INSERT INTO agent_task_queue (id, agent_id, runtime_id, workspace_id, conversation_id, prompt, status, type, created_at) VALUES ('${activeTaskId}', '${seed.agentId}', '${seed.runtimeId}', '${seed.workspaceId}', '${conversationId}', 'active task', 'running', 'user_dm_message', '${now}')`
+  sqlRun(
+    `INSERT INTO agent_task_queue (id, agent_id, runtime_id, workspace_id, conversation_id, prompt, status, type, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, activeTaskId, seed.agentId, seed.runtimeId, seed.workspaceId, conversationId, 'active task', 'running', 'user_dm_message', now
   )
 })
 afterAll(() => cleanupTestData(seed))
@@ -175,8 +173,8 @@ describe("buffered messages CRUD", () => {
     // Create a normal message via SQL
     const msgId = `test_active_${Date.now()}`
     const now = new Date().toISOString()
-    sql(
-      `INSERT INTO message (id, conversation_id, role, content, status, created_at) VALUES ('${msgId}', '${conversationId}', 'user', 'normal msg', 'active', '${now}')`
+    sqlRun(
+      `INSERT INTO message (id, conversation_id, role, content, status, created_at) VALUES (?, ?, ?, ?, ?, ?)`, msgId, conversationId, 'user', 'normal msg', 'active', now
     )
 
     const res = await tokenRequest(
@@ -187,6 +185,6 @@ describe("buffered messages CRUD", () => {
     expect(res.status).toBe(400)
 
     // Cleanup
-    sql(`DELETE FROM message WHERE id = '${msgId}'`)
+    sqlRun(`DELETE FROM message WHERE id = ?`, msgId)
   })
 })
