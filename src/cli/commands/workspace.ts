@@ -1,6 +1,8 @@
 import { Command } from "commander";
 import { readFileSync } from "fs";
+import { toAlookAddress } from "@alook/shared";
 import { APIClient } from "../lib/client.js";
+import { cmdPrefix } from "../lib/env.js";
 import { printJSON } from "../lib/output.js";
 import { resolveClientOpts } from "../lib/resolve-client.js";
 
@@ -68,7 +70,7 @@ export function workspaceCommand(): Command {
       }
 
       if (runtimes.length === 0) {
-        console.error("Error: No daemon registered. Run 'npx @alook/cli daemon start' first.");
+        console.error(`Error: No daemon registered. Run '${cmdPrefix()} daemon start' first.`);
         process.exit(1);
       }
 
@@ -137,10 +139,10 @@ export function workspaceCommand(): Command {
         console.log(`\nWorkspace initialized: ${res.studio.name || res.workspace.name}`);
         console.log("Agents created:");
         for (const agent of res.agents) {
-          const email = agent.email_handle ? `${agent.email_handle}@alook.ai` : "no email";
+          const email = agent.email_handle ? toAlookAddress(agent.email_handle) : "no email";
           console.log(`  - ${agent.name} (${email})`);
         }
-        console.log(`\n  Open: https://alook.ai/w/${res.workspace.slug}`);
+        console.log(`\n  Open: ${serverUrl}/w/${res.workspace.slug}`);
       } catch (err) {
         console.error(`Error: failed to create workspace: ${err instanceof Error ? err.message : err}`);
         process.exit(1);
