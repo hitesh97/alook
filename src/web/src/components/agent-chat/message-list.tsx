@@ -11,7 +11,10 @@ import { highlightMentions } from "@/lib/highlight-mentions";
 import { TaskStream } from "@/components/task-stream";
 import { RuntimeErrorBlock } from "@/components/agent-chat/runtime-error-block";
 import { AnimatedAvatar, type AvatarConfig } from "@/components/avatar";
-import { FileText, Calendar, CircleDot, Mail, Flag, Copy, Check, ChevronRight } from "lucide-react";
+import { FileText, Flag, Copy, Check } from "lucide-react";
+import { EmailCard } from "@/components/agent-chat/event-cards/email-card";
+import { CalendarCard } from "@/components/agent-chat/event-cards/calendar-card";
+import { IssueCard } from "@/components/agent-chat/event-cards/issue-card";
 
 import { eventTypeFromMessage, type GroupPosition } from "@/components/agent-chat/chat-message-utils";
 import { toast } from "sonner";
@@ -76,120 +79,86 @@ export interface MessageItemProps {
   onRetrySend?: (messageId: string) => void;
 }
 
-/**
- * Shared visual shell for agent-side system cards (event + artifact). A tinted
- * icon chip, an uppercase label, a title line, and an OPTIONAL muted preview
- * line. Height follows content — a 2-line card (no preview) is genuinely
- * shorter; we never reserve a blank row to force parity (Gus). Hairline border,
- * quiet chevron, hover lift. Monochrome.
- */
-export function SystemCard({
-  icon: Icon,
-  label,
-  title,
-  preview,
-  trailing,
-  onClick,
-}: {
-  icon: typeof Mail;
-  label: string;
+type EmailData = {
+  type: "email";
+  subject: string;
+  address: string;
+  direction: "inbound" | "outbound";
+};
+type CalendarData = {
+  type: "calendar";
   title: string;
-  preview?: string | null;
-  /** Optional inline element after the title (e.g. an artifact version badge). */
-  trailing?: React.ReactNode;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!onClick}
-      className={cn(
-        // Fixed footprint so email / issue / calendar / file cards are uniform
-        // when stacked — width + height don't follow content (Gus, 2026-06-01).
-        // h fits the 3-line variant; overflow-hidden + per-line truncate keep
-        // any longer content from spilling past the fixed box.
-        "group/card w-[26rem] max-w-full h-[4.75rem] overflow-hidden text-left rounded-md border bg-card",
-        "flex items-center gap-3 px-3 py-2",
-        onClick &&
-          "cursor-pointer transition-all duration-150 hover:-translate-y-px hover:shadow-sm hover:border-foreground/15",
-      )}
-    >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Icon className="size-4" />
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground/70">
-          {label}
-        </span>
-        <span className="flex items-center gap-1.5 min-w-0">
-          <span className="truncate text-sm font-medium text-foreground">{title}</span>
-          {trailing}
-        </span>
-        {preview ? (
-          <span className="truncate text-xs text-muted-foreground">{preview}</span>
-        ) : null}
-      </span>
-      {onClick && (
-        <ChevronRight className="size-4 shrink-0 self-center text-muted-foreground/40 transition-colors duration-150 group-hover/card:text-muted-foreground" />
-      )}
-    </button>
-  );
-}
+  scheduledAt?: string;
+  repeatInterval?: string;
+};
+type IssueData = {
+  type: "issue";
+  title: string;
+  event: "created" | "status_changed" | "dispatch_failed";
+  fromStatus?: string;
+  toStatus?: string;
+  agentId?: string;
+};
+type EventData = EmailData | CalendarData | IssueData;
 
-// Parse the honest label / title / preview out of a system-event message. The
-// card describes the EVENT (an immutable historical fact), never live state —
-// so no "current status" pill. Preview is honest or omitted (Gus/Priya).
-//   Email:    "New email from {sender}: {subject}" | "Email sent to {recipient}: {subject}"
-//   Issue:    "Issue created/opened: {title}" | "Issue status changed: {X} -> {Y}"
-//   Calendar: "{title}" (sometimes "Calendar event: {title}")
-function parseEventCard(
-  type: "issue" | "email" | "calendar",
+function parseEventData(
+  metadata: Record<string, unknown> | null | undefined,
   content: string,
-): { label: string; title: string; preview?: string } {
-  if (type === "email") {
-    const sent = /^Email sent to (.+?): ([\s\S]+)$/.exec(content);
-    if (sent) return { label: "EMAIL", title: sent[2], preview: `to ${sent[1]}` };
-    const inbound = /^New email from (.+?): ([\s\S]+)$/.exec(content);
-    if (inbound) return { label: "EMAIL", title: inbound[2], preview: `from ${inbound[1]}` };
-    const colon = content.indexOf(": ");
-    return colon > -1
-      ? { label: "EMAIL", title: content.slice(colon + 2) }
-      : { label: "EMAIL", title: content };
-  }
-  if (type === "issue") {
-    const status = /^Issue status changed: ([\s\S]+?) -> ([\s\S]+)$/.exec(content);
-    // The status transition is the immutable event fact — show it as the preview.
-    if (status) return { label: "ISSUE", title: "Status changed", preview: `Status: ${status[1]} → ${status[2]}` };
-    const created = /^Issue (?:created|opened): ([\s\S]+)$/.exec(content);
-    if (created) return { label: "ISSUE", title: created[1] }; // 2-line: no honest preview
-    return { label: "ISSUE", title: content.replace(/^Issue:?\s*/i, "") };
-  }
-  // calendar — title only; strip a "Calendar event:" prefix if present. No
-  // datetime/repeat preview unless it is later stamped into the message.
-  return { label: "CALENDAR", title: content.replace(/^Calendar event:\s*/i, "") };
-}
-
-/**
- * System event (email / issue / calendar) as a clickable card. Type + icon are
- * metadata-driven (msg.metadata.{issueId,emailId,calendarEventId}), falling back
- * to the content heuristic only if metadata is absent.
- */
-function EventCard({
-  content,
-  metadata,
-  conversationType,
-  onClick,
-}: {
-  content: string;
-  metadata?: Record<string, unknown> | null;
-  conversationType?: string | null;
-  onClick?: () => void;
-}) {
+  conversationType?: string | null,
+): EventData {
   const type = eventTypeFromMessage(metadata, content, conversationType);
-  const Icon = type === "issue" ? CircleDot : type === "email" ? Mail : Calendar;
-  const { label, title, preview } = parseEventCard(type, content);
-  return <SystemCard icon={Icon} label={label} title={title} preview={preview} onClick={onClick} />;
+
+  if (type === "email") {
+    if (metadata?.subject) {
+      return {
+        type: "email",
+        subject: metadata.subject as string,
+        address: (metadata.direction === "inbound" ? metadata.from : metadata.to) as string,
+        direction: metadata.direction as "inbound" | "outbound",
+      };
+    }
+    const sent = /^Email sent to (.+?): ([\s\S]+)$/.exec(content);
+    if (sent) return { type: "email", subject: sent[2], address: sent[1], direction: "outbound" };
+    const inbound = /^New email from (.+?): ([\s\S]+)$/.exec(content);
+    if (inbound) return { type: "email", subject: inbound[2], address: inbound[1], direction: "inbound" };
+    const colon = content.indexOf(": ");
+    return {
+      type: "email",
+      subject: colon > -1 ? content.slice(colon + 2) : content,
+      address: "",
+      direction: "inbound",
+    };
+  }
+
+  if (type === "issue") {
+    if (metadata?.event) {
+      return {
+        type: "issue",
+        title: (metadata.title as string) ?? content.replace(/^Issue (?:created|opened|status changed):?\s*/i, ""),
+        event: metadata.event as "created" | "status_changed" | "dispatch_failed",
+        fromStatus: metadata.fromStatus as string | undefined,
+        toStatus: metadata.toStatus as string | undefined,
+        agentId: metadata.agentId as string | undefined,
+      };
+    }
+    const status = /^Issue status changed: ([\s\S]+?) -> ([\s\S]+)$/.exec(content);
+    if (status) return { type: "issue", title: `${status[1]} → ${status[2]}`, event: "status_changed", fromStatus: status[1], toStatus: status[2] };
+    const created = /^Issue (?:created|opened): ([\s\S]+)$/.exec(content);
+    if (created) return { type: "issue", title: created[1], event: "created" };
+    if (/dispatch failed/i.test(content)) return { type: "issue", title: content.replace(/^Issue dispatch failed:?\s*/i, ""), event: "dispatch_failed" };
+    return { type: "issue", title: content.replace(/^Issue:?\s*/i, ""), event: "created" };
+  }
+
+  // calendar
+  if (metadata?.title) {
+    return {
+      type: "calendar",
+      title: metadata.title as string,
+      scheduledAt: metadata.scheduledAt as string | undefined,
+      repeatInterval: metadata.repeatInterval as string | undefined,
+    };
+  }
+  return { type: "calendar", title: content.replace(/^Calendar event:\s*/i, "") };
 }
 
 function AttachmentChips({
@@ -632,10 +601,19 @@ export const MessageItem = memo(function MessageItem({
             : eventCalendarEventId
               ? () => onCalendarEventClick(eventCalendarEventId)
               : undefined;
+        const data = parseEventData(msg.metadata, msg.content, conversationType);
+        let card: React.ReactNode;
+        if (data.type === "email") {
+          card = <EmailCard subject={data.subject} address={data.address} direction={data.direction} onClick={onClick} />;
+        } else if (data.type === "calendar") {
+          card = <CalendarCard title={data.title} scheduledAt={data.scheduledAt} repeatInterval={data.repeatInterval} onClick={onClick} />;
+        } else {
+          card = <IssueCard title={data.title} event={data.event} fromStatus={data.fromStatus} toStatus={data.toStatus} assigneeName={data.agentId ? agents.find(a => a.id === data.agentId)?.name : undefined} onClick={onClick} />;
+        }
         return (
           <div data-message-id={msg.id} {...(msg.task_id ? { "data-task-id": msg.task_id } : {})}>
             <AgentRow groupPosition={groupPosition} agentName={agentName} config={agentAvatarConfig}>
-              <EventCard content={msg.content} metadata={msg.metadata} conversationType={conversationType} onClick={onClick} />
+              {card}
             </AgentRow>
           </div>
         );
