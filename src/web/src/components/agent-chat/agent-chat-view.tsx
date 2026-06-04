@@ -1121,9 +1121,10 @@ export function AgentChatView({
               </div>
             </div>
             {/* Symmetric spacer: balances the leading overflow button so the
-                pill stays horizontally centered under the messages column. */}
+                pill stays horizontally centered under the messages column.
+                Hidden on mobile where the pill fills full width. */}
             {!targetConvId && (
-              <div className="shrink-0 self-end mb-2.5 size-8" aria-hidden="true" />
+              <div className="hidden md:block shrink-0 self-end mb-2.5 size-8" aria-hidden="true" />
             )}
           </div>
         </div>
