@@ -22,7 +22,7 @@ import {
 
 import type { AgentRuntime as Runtime } from "@alook/shared";
 import type { WsMessage } from "@alook/shared";
-import { isTauri, isDesktop } from "@alook/shared";
+import { isTauri, isDesktop, tauriInvoke } from "@alook/shared";
 import { listRuntimes, createMachineToken, getMachineTokenStatus } from "@/lib/api";
 import { useUserWs } from "@/lib/use-user-ws";
 import type { TemplatePreset } from "@/lib/templates";
@@ -68,6 +68,8 @@ export function StudioOnboardingClient({
 
   const isTauriDesktop = isTauri() && isDesktop();
   const onlineRuntimes = runtimes.filter((r) => r.status === "online");
+  // Desktop: runtimes are local, show all regardless of daemon status
+  const availableRuntimes = isTauriDesktop ? runtimes : onlineRuntimes;
   const hasOnlineRuntime = onlineRuntimes.length > 0;
   const onlineMachineCount = new Set(onlineRuntimes.map((r) => r.daemon_id).filter(Boolean)).size;
 
@@ -82,27 +84,95 @@ export function StudioOnboardingClient({
 
   // Recover token state on mount (handles page refresh after register)
   useEffect(() => {
+    const doDesktopRegister = async (token: string) => {
+      const result = await tauriInvoke<{ success: boolean; message: string }>("register_cli", { token });
+      if (!result.success) {
+        toast.error(result.message || "Auto-registration failed — please check CLI installation");
+        return;
+      }
+      setMachineRegistered(true);
+      const fresh = await getMachineTokenStatus();
+      if (fresh.runtimes?.length) {
+        setRuntimes(fresh.runtimes.map((rt) => ({
+          id: rt.id,
+          workspace_id: "",
+          daemon_id: fresh.hostname || null,
+          runtime_mode: "local",
+          provider: rt.type,
+          status: fresh.daemon_online ? "online" as const : "offline" as const,
+          device_info: fresh.hostname || "",
+          metadata: { version: rt.version },
+          last_seen_at: null,
+          created_at: "",
+          updated_at: "",
+        })));
+        if (fresh.daemon_online) setDaemonOnline(true);
+      }
+    };
+
     getMachineTokenStatus()
-      .then((data) => {
-        if (data.status === "registered" || data.status === "active") {
-          // If this is a new workspace and the token is already bound elsewhere, ignore its runtimes
-          if (isNewWorkspace && data.workspace_id) return;
-          setMachineRegistered(true);
-          if (data.daemon_online) setDaemonOnline(true);
-          if (data.runtimes?.length) {
-            setRuntimes(data.runtimes.map((rt) => ({
-              id: rt.id,
-              workspace_id: "",
-              daemon_id: data.hostname || null,
-              runtime_mode: "local",
-              provider: rt.type,
-              status: rt.status,
-              device_info: data.hostname || "",
-              metadata: { version: rt.version },
-              last_seen_at: null,
-              created_at: "",
-              updated_at: "",
-            })));
+      .then(async (data) => {
+        if (isTauriDesktop) {
+          // Desktop token logic:
+          // - registered: already registered, use runtimesJson directly
+          // - pending: reuse token, auto-register
+          // - active (bound to workspace): create new token + auto-register
+          // - null: create new token + auto-register
+          if (data.status === "registered") {
+            setMachineRegistered(true);
+            if (data.daemon_online) setDaemonOnline(true);
+            if (data.runtimes?.length) {
+              setRuntimes(data.runtimes.map((rt) => ({
+                id: rt.id,
+                workspace_id: "",
+                daemon_id: data.hostname || null,
+                runtime_mode: "local",
+                provider: rt.type,
+                status: rt.status,
+                device_info: data.hostname || "",
+                metadata: { version: rt.version },
+                last_seen_at: null,
+                created_at: "",
+                updated_at: "",
+              })));
+            }
+          } else if (data.status === "pending") {
+            try {
+              const { token } = await createMachineToken("cli");
+              await doDesktopRegister(token);
+            } catch {
+              toast.error("Failed to auto-register CLI — please check that Claude or Codex is installed");
+            }
+          } else {
+            // active (bound to another workspace) or null — create new token + register
+            try {
+              const { token } = await createMachineToken("cli");
+              await doDesktopRegister(token);
+            } catch {
+              toast.error("Failed to auto-register CLI — please check that Claude or Codex is installed");
+            }
+          }
+        } else {
+          // Web (non-desktop) token recovery
+          if (data.status === "registered" || data.status === "active") {
+            if (isNewWorkspace && data.workspace_id) return;
+            setMachineRegistered(true);
+            if (data.daemon_online) setDaemonOnline(true);
+            if (data.runtimes?.length) {
+              setRuntimes(data.runtimes.map((rt) => ({
+                id: rt.id,
+                workspace_id: "",
+                daemon_id: data.hostname || null,
+                runtime_mode: "local",
+                provider: rt.type,
+                status: rt.status,
+                device_info: data.hostname || "",
+                metadata: { version: rt.version },
+                last_seen_at: null,
+                created_at: "",
+                updated_at: "",
+              })));
+            }
           }
         }
       })
@@ -124,7 +194,7 @@ export function StudioOnboardingClient({
               daemon_id: data.hostname || null,
               runtime_mode: "local",
               provider: rt.type,
-              status: "online" as const,
+              status: data.daemon_online ? "online" as const : "offline" as const,
               device_info: data.hostname || "",
               metadata: { version: rt.version },
               last_seen_at: null,
@@ -179,17 +249,17 @@ export function StudioOnboardingClient({
 
   useUserWs(handleWsMessage);
 
-  // Auto-assign first online runtime when runtimes load/change
+  // Auto-assign first available runtime when runtimes load/change
   useEffect(() => {
-    const firstOnline = onlineRuntimes[0]?.id;
-    if (!firstOnline) return;
+    const firstAvailable = availableRuntimes[0]?.id;
+    if (!firstAvailable) return;
     setMembers((prev) => {
       if (prev.length === 0) return prev;
       const needsUpdate = prev.some((m) => !m.runtimeId);
       if (!needsUpdate) return prev;
-      return prev.map((m) => m.runtimeId ? m : { ...m, runtimeId: firstOnline });
+      return prev.map((m) => m.runtimeId ? m : { ...m, runtimeId: firstAvailable });
     });
-  }, [onlineRuntimes]);
+  }, [availableRuntimes]);
 
   const resolveHandles = useCallback(async (memberNames: string[]) => {
     try {
@@ -210,7 +280,7 @@ export function StudioOnboardingClient({
     if (!initialTemplate || loadingRuntimes) return;
     if (members.length > 0) return;
     const generated = shuffleMembers(initialTemplate.members.length);
-    const defaultRuntimeId = onlineRuntimes[0]?.id || "";
+    const defaultRuntimeId = availableRuntimes[0]?.id || "";
     const newMembers = initialTemplate.members.map((m, i) => ({
       name: generated[i].name,
       role: m.role,
@@ -238,7 +308,7 @@ export function StudioOnboardingClient({
     setScenarioId(id);
     const preset = SCENARIO_PRESETS.find((s) => s.id === id)!;
     const generated = shuffleMembers(preset.members.length);
-    const defaultRuntimeId = onlineRuntimes[0]?.id || "";
+    const defaultRuntimeId = availableRuntimes[0]?.id || "";
     const newMembers = preset.members.map((m, i) => ({
       name: generated[i].name,
       role: m.role,
@@ -636,7 +706,7 @@ export function StudioOnboardingClient({
             {/* Team Preview */}
             <TeamPreview
               members={members}
-              runtimes={onlineRuntimes as Runtime[]}
+              runtimes={availableRuntimes as Runtime[]}
               onShuffle={handleShuffle}
               onAssignRuntime={handleAssignRuntime}
             />
