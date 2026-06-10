@@ -43,17 +43,21 @@ struct CliConfig {
 
 #[cfg(desktop)]
 fn resolve_path() -> String {
-    let default_path = std::env::var("PATH").unwrap_or_default();
-    let extra = [
-        "/usr/local/bin",
-        "/opt/homebrew/bin",
-        "/opt/homebrew/sbin",
-    ];
-    let mut parts: Vec<&str> = extra.iter().copied().collect();
-    if !default_path.is_empty() {
-        parts.push(&default_path);
-    }
-    parts.join(":")
+    use std::sync::OnceLock;
+    static CACHED: OnceLock<String> = OnceLock::new();
+    CACHED.get_or_init(|| {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        if let Ok(output) = std::process::Command::new(&shell)
+            .args(["-ilc", "echo $PATH"])
+            .output()
+        {
+            let shell_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !shell_path.is_empty() {
+                return shell_path;
+            }
+        }
+        std::env::var("PATH").unwrap_or_default()
+    }).clone()
 }
 
 #[cfg(desktop)]
