@@ -7,16 +7,15 @@ const DM_RESPONSE_NOTICE =
   " If this task will take more than 30 seconds, send a quick ack first so the user knows you're on it.";
 
 const EMAIL_NOTICE =
-  "This task was triggered automatically by an incoming email. There is no human in this session." +
-  " If you need to communicate with a human, you MUST send an email using the email sending tool." +
-  " If you need more information or confirmation from the human, send them an email asking for it and then exit." +
-  " Do not wait — when the human replies, a new task will be triggered automatically and you will be woken up with their response.";
+  "This task was triggered by an incoming email. Reply to the sender via email — use the email sending tool to respond." +
+  " If you need more information or confirmation, email them and then exit." +
+  " Do not wait — when they reply, a new task will be triggered automatically and you will be woken up with their response.";
 
 const CALENDAR_NOTICE =
-  "This task was triggered by a scheduled calendar event. There is no human in this session." +
-  " If you need to communicate with a human, you MUST send an email using the email sending tool." +
-  " If you need more information or confirmation, send an email asking for it and then exit." +
-  " Do not wait — when the human replies, a new task will be triggered automatically and you will be woken up with their response.";
+  "This task was triggered by a scheduled calendar event." +
+  " If you need to communicate with someone, send an email using the email sending tool." +
+  " If you need more information or confirmation, email them and then exit." +
+  " Do not wait — when they reply, a new task will be triggered automatically and you will be woken up with their response.";
 
 const ISSUE_NOTICE =
   "This task was triggered by an assigned issue. The issue_id is provided in this message." +
