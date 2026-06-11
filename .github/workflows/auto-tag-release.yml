@@ -58,21 +58,36 @@ jobs:
         env:
           OUTPUT: CHANGELOG.md
 
+      - name: Get previous tag
+        if: steps.check.outputs.exists == 'false'
+        id: prev_tag
+        run: |
+          PREV=$(git tag --sort=-version:refname | grep -v "^${{ steps.version.outputs.tag }}$" | head -1)
+          echo "tag=${PREV:-}" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         if: steps.check.outputs.exists == 'false'
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CHANGELOG: ${{ steps.changelog.outputs.content }}
+          PREV_TAG: ${{ steps.prev_tag.outputs.tag }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "${{ steps.version.outputs.tag }}" \
-            --title "${{ steps.version.outputs.tag }}" \
-            --notes "$CHANGELOG"
-          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}"
+          FULL_CHANGELOG=""
+          if [ -n "$PREV_TAG" ]; then
+            FULL_CHANGELOG="
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG}"
+          fi
+          NOTES="${CHANGELOG}${FULL_CHANGELOG}"
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "$NOTES"
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/$TAG"
           {
             echo "url=$RELEASE_URL"
             echo "body<<EOF"
-            echo "$CHANGELOG"
+            echo "$NOTES"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
