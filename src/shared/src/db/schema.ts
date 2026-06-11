@@ -559,6 +559,7 @@ export const artifact = sqliteTable(
     contentType: text("content_type").notNull().default("application/octet-stream"),
     size: integer("size").notNull(),
     r2Key: text("r2_key").notNull(),
+    thumbnailR2Key: text("thumbnail_r2_key"),
     source: text("source").notNull().default("agent"),
     createdAt: text("created_at").notNull().$defaultFn(() => new Date().toISOString()),
   },

@@ -58,6 +58,15 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     httpMetadata: { contentType },
   });
 
+  let thumbnailR2Key: string | undefined;
+  const thumbnail = formData.get("thumbnail");
+  if (thumbnail instanceof File && thumbnail.size <= 50 * 1024) {
+    thumbnailR2Key = `artifacts/${ws.workspaceId}/${agentId}/${conversationId}/${artifactId}/thumbnail.jpg`;
+    await bucket.put(thumbnailR2Key, await thumbnail.arrayBuffer(), {
+      httpMetadata: { contentType: "image/jpeg" },
+    });
+  }
+
   const row = await queries.artifact.createArtifact(db, {
     id: artifactId,
     conversationId,
@@ -67,6 +76,7 @@ export const POST = withAuth(async (req: NextRequest, ctx) => {
     contentType,
     size: file.size,
     r2Key,
+    thumbnailR2Key,
   });
   const response = queries.artifact.artifactToResponse(row);
 

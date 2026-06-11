@@ -68,6 +68,7 @@ import {
   formatSize,
 } from "@/components/agent-chat/artifact-sheet";
 import { EmailEventSheet } from "@/components/agent-chat/email-event-sheet";
+import { ImageLightbox } from "@/components/agent-chat/image-lightbox";
 import { CalendarEventSheet } from "@/components/calendar/calendar-event-sheet";
 import { IssueSheet } from "@/components/issues/issue-sheet";
 import {
@@ -177,6 +178,7 @@ export function AgentChatView({
     issueConvId,
     issueTaskId,
   } = useChatSheets(workspaceId);
+  const [lightboxArtifact, setLightboxArtifact] = useState<Artifact | null>(null);
   const {
     pendingFiles,
     setPendingFiles,
@@ -356,7 +358,9 @@ export function AgentChatView({
 
   const handleArtifactClick = useCallback(
     (artifact: Artifact) => {
-      if (isPreviewable(artifact)) {
+      if (artifact.content_type.startsWith("image/")) {
+        setLightboxArtifact(artifact);
+      } else if (isPreviewable(artifact)) {
         setSelectedArtifact(artifact);
         setArtifactSheetOpen(true);
       } else {
@@ -369,7 +373,9 @@ export function AgentChatView({
 
   const handleIssueArtifactClick = useCallback(
     (artifact: Artifact) => {
-      if (isPreviewable(artifact)) {
+      if (artifact.content_type.startsWith("image/")) {
+        setLightboxArtifact(artifact);
+      } else if (isPreviewable(artifact)) {
         setSelectedArtifact(artifact);
         setArtifactSheetOpen(true);
       } else {
@@ -813,6 +819,7 @@ export function AgentChatView({
                         version={versionMap.get(item.data.id) ?? 1}
                         hasDuplicates={duplicateFilenames.has(item.data.filename)}
                         onClick={handleArtifactClick}
+                        workspaceId={workspaceId}
                       />
                     </AgentRow>
                   </div>
@@ -1210,6 +1217,13 @@ export function AgentChatView({
           </div>
         </div>
       </div>
+
+      <ImageLightbox
+        open={lightboxArtifact != null}
+        onClose={() => setLightboxArtifact(null)}
+        artifact={lightboxArtifact}
+        workspaceId={workspaceId}
+      />
 
       <ArtifactSheet
         open={artifactSheetOpen}

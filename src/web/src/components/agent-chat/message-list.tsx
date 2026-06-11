@@ -11,7 +11,7 @@ import { highlightMentions } from "@/lib/highlight-mentions";
 import { TaskStream } from "@/components/task-stream";
 import { RuntimeErrorBlock } from "@/components/agent-chat/runtime-error-block";
 import { AnimatedAvatar, type AvatarConfig } from "@/components/avatar";
-import { FileText, Flag, Copy, Check, MessageSquareQuote, MessageSquare } from "lucide-react";
+import { FileText, Flag, Copy, Check, MessageSquareQuote, MessageSquare, Image } from "lucide-react";
 import { EmailCard } from "@/components/agent-chat/event-cards/email-card";
 import { CalendarCard } from "@/components/agent-chat/event-cards/calendar-card";
 import { IssueCard } from "@/components/agent-chat/event-cards/issue-card";
@@ -195,7 +195,7 @@ function AttachmentChips({
           onClick={(e) => { e.stopPropagation(); onArtifactClick(a); }}
           className="inline-flex items-center gap-1 rounded-md bg-primary-foreground/10 border border-primary-foreground/20 px-2 py-0.5 text-xs text-primary-foreground/80 hover:bg-primary-foreground/20 transition-colors cursor-pointer"
         >
-          <FileText className="size-3 shrink-0" />
+          {a.content_type.startsWith("image/") ? <Image className="size-3 shrink-0" /> : <FileText className="size-3 shrink-0" />}
           <span className="truncate max-w-37.5">{a.filename}</span>
         </button>
       ))}

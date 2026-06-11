@@ -230,6 +230,7 @@ export interface Artifact {
   content_type: string;
   size: number;
   source: string;
+  has_thumbnail: boolean;
   created_at: string;
 }
 
