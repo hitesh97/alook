@@ -458,7 +458,7 @@ pub fn set_window_theme(window: tauri::WebviewWindow, dark: bool) {
         unsafe {
             let ns_window = window.ns_window().unwrap() as *mut AnyObject;
             let (r, g, b) = if dark {
-                (0.137f64, 0.129f64, 0.118f64)
+                (0.063f64, 0.051f64, 0.039f64)
             } else {
                 (0.929f64, 0.910f64, 0.871f64)
             };
