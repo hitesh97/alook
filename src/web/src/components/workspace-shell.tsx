@@ -33,7 +33,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <GradientBackground />
             <div className="flex-1 min-h-0 px-2 pb-2 pt-2 flex flex-col">
               <MobileTopBar />
-              <main className="flex-1 min-h-0 rounded-xl bg-card/80 backdrop-blur-xl shadow-lg ring-1 ring-border/40 overflow-hidden flex flex-col">
+              <main className="flex-1 min-h-0 rounded-xl bg-card/80 backdrop-blur-xl ring-1 ring-border/40 overflow-hidden flex flex-col">
                 {children}
               </main>
             </div>
